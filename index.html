@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recensement des Pierres Tombales</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@200;300;400&display=swap');
+
+  :root {
+    --stone: #2a2420;
+    --granite: #3d3530;
+    --moss: #4a5240;
+    --gold: #c9a96e;
+    --cream: #f5f0e8;
+    --parchment: #ede5d0;
+    --mist: #8a8478;
+    --engraved: #b8ad9e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--stone);
+    color: var(--cream);
+    font-family: 'Josefin Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.5;
+  }
+
+  header {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 48px 24px 32px;
+    border-bottom: 1px solid rgba(201,169,110,0.2);
+  }
+
+  .header-ornament {
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 300;
+    letter-spacing: 4px;
+    color: var(--cream);
+    line-height: 1.1;
+  }
+
+  header h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .subtitle {
+    margin-top: 10px;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--mist);
+    text-transform: uppercase;
+  }
+
+  .main-container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 60px;
+  }
+
+  /* Drop Zone */
+  .drop-zone {
+    border: 1px solid rgba(201,169,110,0.3);
+    border-radius: 2px;
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255,255,255,0.02);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(201,169,110,0.1);
+    pointer-events: none;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--gold);
+    background: rgba(201,169,110,0.04);
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 16px;
+    opacity: 0.6;
+  }
+
+  .drop-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 300;
+    color: var(--parchment);
+    margin-bottom: 8px;
+  }
+
+  .drop-sub {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--mist);
+    text-transform: uppercase;
+  }
+
+  #fileInput { display: none; }
+
+  /* Processing */
+  .processing-overlay {
+    display: none;
+    text-align: center;
+    padding: 40px;
+    margin: 24px 0;
+  }
+
+  .processing-overlay.active { display: block; }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(201,169,110,0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .processing-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 18px;
+    font-style: italic;
+    color: var(--engraved);
+  }
+
+  /* Preview */
+  .photo-preview {
+    display: none;
+    margin: 24px 0;
+    position: relative;
+    text-align: center;
+  }
+
+  .photo-preview.active { display: block; }
+
+  .photo-preview img {
+    max-width: 100%;
+    max-height: 340px;
+    border: 1px solid rgba(201,169,110,0.2);
+    object-fit: contain;
+  }
+
+  /* Results */
+  .results-section {
+    display: none;
+    margin-top: 32px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .results-section.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(201,169,110,0.15);
+  }
+
+  /* GPS Info */
+  .gps-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,169,110,0.15);
+    border-radius: 2px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    color: var(--engraved);
+    letter-spacing: 1px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .gps-item span { color: var(--gold); }
+
+  /* Records Table */
+  .records-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .records-table th {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(201,169,110,0.2);
+    font-weight: 400;
+  }
+
+  .records-table td {
+    padding: 12px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: var(--parchment);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 15px;
+  }
+
+  .records-table tr:hover td {
+    background: rgba(201,169,110,0.03);
+  }
+
+  .record-name { font-weight: 600; }
+  .record-dates { color: var(--engraved); font-style: italic; }
+
+  /* Editable fields */
+  .records-table td[contenteditable="true"] {
+    outline: none;
+    cursor: text;
+  }
+  .records-table td[contenteditable="true"]:focus {
+    background: rgba(201,169,110,0.06);
+    border-bottom-color: rgba(201,169,110,0.4);
+  }
+
+  /* Action Buttons */
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: 'Josefin Sans', sans-serif;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 400;
+    padding: 12px 24px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: transparent;
+  }
+
+  .btn-primary {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .btn-primary:hover {
+    background: var(--gold);
+    color: var(--stone);
+  }
+
+  .btn-secondary {
+    border-color: rgba(255,255,255,0.2);
+    color: var(--mist);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--cream);
+    color: var(--cream);
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 32px;
+    padding: 20px 0;
+    margin-bottom: 8px;
+  }
+
+  .stat { text-align: center; }
+
+  .stat-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--gold);
+    display: block;
+  }
+
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--mist);
+  }
+
+  .error-msg {
+    background: rgba(180,60,40,0.1);
+    border: 1px solid rgba(180,60,40,0.3);
+    border-radius: 2px;
+    padding: 16px 20px;
+    color: #e8a090;
+    font-size: 13px;
+    margin: 16px 0;
+    display: none;
+  }
+
+  .error-msg.active { display: block; }
+
+  /* Divider */
+  .ornament-divider {
+    text-align: center;
+    margin: 32px 0;
+    color: rgba(201,169,110,0.3);
+    font-size: 18px;
+    letter-spacing: 12px;
+  }
+
+  /* Cumulative count */
+  .cumul-note {
+    font-size: 11px;
+    color: var(--mist);
+    letter-spacing: 1px;
+    margin-top: 8px;
+  }
+
+  .api-key-box {
+    border: 1px solid rgba(201,169,110,0.3);
+    border-radius: 2px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    background: rgba(255,255,255,0.02);
+  }
+  .api-key-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+  .api-key-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .api-key-row input {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(201,169,110,0.2);
+    border-radius: 2px;
+    padding: 10px 14px;
+    color: var(--cream);
+    font-family: monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  .api-key-row input:focus {
+    border-color: var(--gold);
+  }
+  .api-key-hint {
+    font-size: 11px;
+    color: var(--mist);
+    margin-top: 10px;
+    letter-spacing: 1px;
+  }
+  .api-key-success {
+    color: #7bc67a !important;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-ornament">✦ Projet de recensement ✦</div>
+  <h1>Pierres <em>Tombales</em></h1>
+  <div class="subtitle">Extraction automatique · GPS &amp; Inscriptions · Export Excel</div>
+</header>
+
+<div class="main-container">
+
+    <!-- API KEY BOX -->
+  <div class="api-key-box" id="apiKeyBox">
+    <div class="api-key-label">🔑 Clé API Anthropic</div>
+    <div class="api-key-row">
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" onclick="saveApiKey()">Enregistrer</button>
+    </div>
+    <div class="api-key-hint" id="apiKeyHint">Entrez votre clé API pour activer l'application</div>
+  </div>
+
+  <div class="drop-zone" id="mainDropZone" style="display:none" id="dropZone">
+    <div class="drop-icon">🪨</div>
+    <div class="drop-title">Déposez une photo ici</div>
+    <div class="drop-sub">JPG · PNG · HEIC — cliquez ou glissez</div>
+    <input type="file" id="fileInput" accept="image/*" multiple>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="processing-overlay" id="processingOverlay">
+    <div class="spinner"></div>
+    <div class="processing-text">Lecture des inscriptions en cours…</div>
+  </div>
+
+  <div class="photo-preview" id="photoPreview">
+    <img id="previewImg" src="" alt="Aperçu">
+  </div>
+
+  <div class="results-section" id="resultsSection">
+
+    <div class="section-label">Coordonnées GPS</div>
+    <div class="gps-box" id="gpsBox">
+      <div class="gps-item">Latitude : <span id="gpsLat">—</span></div>
+      <div class="gps-item">Longitude : <span id="gpsLng">—</span></div>
+      <div class="gps-item">Fichier : <span id="fileName">—</span></div>
+      <div class="gps-item">Date photo : <span id="photoDate">—</span></div>
+    </div>
+
+    <div class="section-label">Personnes identifiées</div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-num" id="countPersons">0</span>
+        <span class="stat-label">Personnes</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="countPhotos">0</span>
+        <span class="stat-label">Photos traitées</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="countTotal">0</span>
+        <span class="stat-label">Total cumulatif</span>
+      </div>
+    </div>
+
+    <table class="records-table" id="recordsTable">
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Prénom</th>
+          <th>Naissance</th>
+          <th>Décès</th>
+          <th>Famille / Pierre</th>
+          <th>GPS Lat</th>
+          <th>GPS Lng</th>
+        </tr>
+      </thead>
+      <tbody id="recordsBody"></tbody>
+    </table>
+
+    <div class="ornament-divider">· · ·</div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="exportExcel()">⬇ Exporter Excel</button>
+      <button class="btn btn-secondary" onclick="addNewPhoto()">+ Ajouter une photo</button>
+      <button class="btn btn-secondary" onclick="clearAll()">✕ Effacer tout</button>
+    </div>
+    <div class="cumul-note" id="cumulNote"></div>
+  </div>
+
+</div>
+
+<script>
+
+// ═══════════════════════════════════════════════════════════
+// API KEY MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+let sessionApiKey = '';
+
+function getApiKey() {
+  return sessionApiKey;
+}
+
+function saveApiKey() {
+  const input = document.getElementById('apiKeyInput');
+  const key = input.value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    document.getElementById('apiKeyHint').textContent = '⚠️ Clé invalide — elle doit commencer par sk-ant-';
+    document.getElementById('apiKeyHint').className = 'api-key-hint';
+    return;
+  }
+  sessionApiKey = key;
+  input.value = '••••••••••••••••••••••••';
+  const hint = document.getElementById('apiKeyHint');
+  hint.textContent = '✓ Clé enregistrée pour cette session — vous pouvez maintenant analyser des photos';
+  hint.className = 'api-key-hint api-key-success';
+  document.getElementById('mainDropZone').style.display = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let allRecords = []; // cumulative across photos
+let photoCount = 0;
+let currentGPS = { lat: null, lng: null };
+let currentFile = null;
+
+// ═══════════════════════════════════════════════════════════
+// DRAG & DROP / FILE INPUT
+// ═══════════════════════════════════════════════════════════
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+// ═══════════════════════════════════════════════════════════
+// MAIN HANDLER
+// ═══════════════════════════════════════════════════════════
+async function handleFile(file) {
+  currentFile = file;
+  showError('');
+  showProcessing(true);
+
+  // Show preview
+  const url = URL.createObjectURL(file);
+  document.getElementById('previewImg').src = url;
+  document.getElementById('photoPreview').classList.add('active');
+
+  // Extract EXIF
+  const gps = await extractGPS(file);
+  currentGPS = gps;
+  document.getElementById('gpsLat').textContent = gps.lat ? gps.lat.toFixed(6) : 'Non disponible';
+  document.getElementById('gpsLng').textContent = gps.lng ? gps.lng.toFixed(6) : 'Non disponible';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('photoDate').textContent = gps.date || 'Non disponible';
+
+  // Convert image to base64
+  const base64 = await fileToBase64(file);
+
+  // Call Claude API
+  try {
+    const persons = await analyzeWithClaude(base64, file.type || 'image/jpeg');
+    photoCount++;
+    appendRecords(persons, gps, file.name);
+    updateStats();
+    document.getElementById('resultsSection').classList.add('active');
+    showProcessing(false);
+    document.getElementById('cumulNote').textContent =
+      `Session active — ${allRecords.length} personne(s) au total dans ${photoCount} photo(s)`;
+  } catch (err) {
+    showProcessing(false);
+    showError('Erreur API : ' + err.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// GPS EXTRACTION
+// ═══════════════════════════════════════════════════════════
+function extractGPS(file) {
+  return new Promise((resolve) => {
+    EXIF.getData(file, function() {
+      const lat = EXIF.getTag(this, 'GPSLatitude');
+      const latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+      const lng = EXIF.getTag(this, 'GPSLongitude');
+      const lngRef = EXIF.getTag(this, 'GPSLongitudeRef');
+      const dateTime = EXIF.getTag(this, 'DateTimeOriginal') || EXIF.getTag(this, 'DateTime');
+
+      if (lat && lng) {
+        const latDec = toDecimal(lat, latRef);
+        const lngDec = toDecimal(lng, lngRef);
+        resolve({ lat: latDec, lng: lngDec, date: dateTime || null });
+      } else {
+        resolve({ lat: null, lng: null, date: dateTime || null });
+      }
+    });
+  });
+}
+
+function toDecimal(dms, ref) {
+  const d = dms[0] + dms[1] / 60 + dms[2] / 3600;
+  return (ref === 'S' || ref === 'W') ? -d : d;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CLAUDE API
+// ═══════════════════════════════════════════════════════════
+async function analyzeWithClaude(base64Data, mediaType) {
+  const prompt = `Tu es un expert en lecture d'inscriptions funéraires. Analyse cette photo de pierre tombale.
+
+Extrais TOUTES les personnes inscrites sur la pierre. Pour chaque personne, fournis :
+- nom (nom de famille)
+- prenom
+- naissance (année ou date, ex: 1889 ou 12 mars 1889)
+- deces (année ou date)
+- famille (nom de famille principal de la pierre, ex: LAFLEUR-MARLEAU)
+
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ni après, sans backticks.
+Format exact :
+[{"nom":"LAFLEUR","prenom":"Jeremie","naissance":"1889","deces":"1964","famille":"LAFLEUR-MARLEAU"},...]
+
+Si une information est absente, utilise null. Si aucune personne détectée, retourne [].`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': getApiKey(),
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Data } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || response.statusText);
+  }
+
+  const data = await response.json();
+  const text = data.content.map(b => b.text || '').join('').trim();
+
+  // Parse JSON
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RECORDS
+// ═══════════════════════════════════════════════════════════
+function appendRecords(persons, gps, filename) {
+  const tbody = document.getElementById('recordsBody');
+
+  persons.forEach(p => {
+    const record = {
+      nom: p.nom || '',
+      prenom: p.prenom || '',
+      naissance: p.naissance || '',
+      deces: p.deces || '',
+      famille: p.famille || '',
+      lat: gps.lat ? gps.lat.toFixed(6) : '',
+      lng: gps.lng ? gps.lng.toFixed(6) : '',
+      fichier: filename,
+      date_photo: gps.date || ''
+    };
+    allRecords.push(record);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td contenteditable="true" class="record-name">${record.nom}</td>
+      <td contenteditable="true">${record.prenom}</td>
+      <td contenteditable="true" class="record-dates">${record.naissance}</td>
+      <td contenteditable="true" class="record-dates">${record.deces}</td>
+      <td contenteditable="true">${record.famille}</td>
+      <td>${record.lat || '—'}</td>
+      <td>${record.lng || '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateStats() {
+  document.getElementById('countPersons').textContent = allRecords.length;
+  document.getElementById('countPhotos').textContent = photoCount;
+  document.getElementById('countTotal').textContent = allRecords.length;
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXCEL EXPORT
+// ═══════════════════════════════════════════════════════════
+function exportExcel() {
+  // Collect current editable values from table
+  const tbody = document.getElementById('recordsBody');
+  const rows = tbody.querySelectorAll('tr');
+  const exportData = [];
+
+  rows.forEach((tr, i) => {
+    const cells = tr.querySelectorAll('td');
+    exportData.push({
+      'Nom': cells[0]?.textContent || '',
+      'Prénom': cells[1]?.textContent || '',
+      'Naissance': cells[2]?.textContent || '',
+      'Décès': cells[3]?.textContent || '',
+      'Famille / Pierre': cells[4]?.textContent || '',
+      'GPS Latitude': cells[5]?.textContent || '',
+      'GPS Longitude': cells[6]?.textContent || '',
+      'Fichier Photo': allRecords[i]?.fichier || '',
+      'Date Photo': allRecords[i]?.date_photo || ''
+    });
+  });
+
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  ws['!cols'] = [
+    {wch:18},{wch:18},{wch:12},{wch:12},{wch:20},{wch:14},{wch:14},{wch:22},{wch:20}
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Recensement');
+
+  const date = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `pierres-tombales-${date}.xlsx`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+
+// Compress image to stay under 4.5MB for API safety margin
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const MAX_BYTES = 4.5 * 1024 * 1024; // 4.5MB base64 target
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+
+      const canvas = document.createElement('canvas');
+      let w = img.width;
+      let h = img.height;
+
+      // Scale down if > 4000px on longest side (keeps text readable)
+      const MAX_DIM = 4000;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Try quality from 0.92 down until under limit
+      let quality = 0.92;
+      let dataUrl;
+      do {
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+        quality -= 0.05;
+      } while (dataUrl.length * 0.75 > MAX_BYTES && quality > 0.3);
+
+      const sizeMB = (dataUrl.length * 0.75 / 1024 / 1024).toFixed(1);
+      console.log(`Image compressée: ${w}×${h}px, ~${sizeMB}MB, qualité ${(quality+0.05).toFixed(2)}`);
+
+      res(dataUrl.split(',')[1]);
+    };
+
+    img.onerror = () => rej(new Error('Impossible de lire l\'image'));
+    img.src = url;
+  });
+}
+
+function showProcessing(show) {
+  document.getElementById('processingOverlay').classList.toggle('active', show);
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.toggle('active', !!msg);
+}
+
+function addNewPhoto() {
+  document.getElementById('fileInput').click();
+}
+
+function clearAll() {
+  if (!confirm('Effacer toutes les données de la session ?')) return;
+  allRecords = [];
+  photoCount = 0;
+  document.getElementById('recordsBody').innerHTML = '';
+  document.getElementById('resultsSection').classList.remove('active');
+  document.getElementById('photoPreview').classList.remove('active');
+  updateStats();
+}
+</script>
+</body>
+</html>
