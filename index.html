@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pierres Tombales v10</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@200;300;400&display=swap');
+  :root { --stone:#2a2420; --gold:#c9a96e; --cream:#f5f0e8; --parchment:#ede5d0; --mist:#8a8478; --engraved:#b8ad9e; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--stone); color:var(--cream); font-family:'Josefin Sans',sans-serif; font-weight:300; min-height:100vh; overflow-x:hidden; }
+
+  header { text-align:center; padding:48px 24px 32px; border-bottom:1px solid rgba(201,169,110,0.2); }
+  .header-ornament { font-size:11px; letter-spacing:6px; color:var(--gold); text-transform:uppercase; margin-bottom:12px; }
+  header h1 { font-family:'Cormorant Garamond',serif; font-size:clamp(28px,5vw,52px); font-weight:300; letter-spacing:4px; }
+  header h1 em { font-style:italic; color:var(--gold); }
+  .subtitle { margin-top:10px; font-size:11px; letter-spacing:3px; color:var(--mist); text-transform:uppercase; }
+
+  .main-container { max-width:1200px; margin:0 auto; padding:40px 24px 60px; }
+
+  .api-key-box { border:1px solid rgba(201,169,110,0.3); border-radius:2px; padding:24px 28px; margin-bottom:20px; background:rgba(255,255,255,0.02); }
+  .api-key-label { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:12px; }
+  .api-key-row { display:flex; gap:12px; align-items:center; }
+  .api-key-row input { flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,110,0.2); border-radius:2px; padding:10px 14px; color:var(--cream); font-family:monospace; font-size:13px; outline:none; }
+  .api-key-row input:focus { border-color:var(--gold); }
+  .api-key-hint { font-size:11px; color:var(--mist); margin-top:10px; }
+  .api-key-success { color:#7bc67a !important; }
+
+  .drop-zone { border:1px solid rgba(201,169,110,0.3); border-radius:2px; padding:48px 32px; text-align:center; cursor:pointer; transition:all 0.3s; background:rgba(255,255,255,0.02); position:relative; overflow:hidden; }
+  .drop-zone::before { content:''; position:absolute; inset:4px; border:1px solid rgba(201,169,110,0.1); pointer-events:none; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color:var(--gold); background:rgba(201,169,110,0.04); }
+  .drop-icon { font-size:36px; margin-bottom:16px; opacity:0.6; }
+  .drop-title { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:300; color:var(--parchment); margin-bottom:8px; }
+  .drop-sub { font-size:11px; letter-spacing:2px; color:var(--mist); text-transform:uppercase; }
+  #fileInput { display:none; }
+
+  .processing-overlay { display:none; text-align:center; padding:40px; margin:24px 0; }
+  .processing-overlay.active { display:block; }
+  .spinner { width:36px; height:36px; border:1px solid rgba(201,169,110,0.2); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 20px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .processing-text { font-family:'Cormorant Garamond',serif; font-size:18px; font-style:italic; color:var(--engraved); }
+  .processing-timer { font-size:11px; letter-spacing:2px; color:var(--mist); margin-top:8px; }
+
+  .photo-preview { display:none; margin:24px 0; text-align:center; }
+  .photo-preview.active { display:block; }
+  .photo-preview img { max-width:100%; max-height:300px; border:1px solid rgba(201,169,110,0.2); object-fit:contain; cursor:zoom-in; }
+  .photo-hint { font-size:10px; letter-spacing:2px; color:var(--mist); text-transform:uppercase; margin-top:6px; }
+
+  .error-msg { background:rgba(180,60,40,0.1); border:1px solid rgba(180,60,40,0.3); border-radius:2px; padding:16px 20px; color:#e8a090; font-size:13px; margin:16px 0; display:none; }
+  .error-msg.active { display:block; }
+
+  .results-section { display:none; margin-top:32px; animation:fadeUp 0.5s ease both; }
+  .results-section.active { display:block; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(16px);} to{opacity:1;transform:translateY(0);} }
+  .section-label { font-size:10px; letter-spacing:4px; color:var(--gold); text-transform:uppercase; margin-bottom:16px; padding-bottom:8px; border-bottom:1px solid rgba(201,169,110,0.15); }
+
+  .gps-box { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,110,0.15); border-radius:2px; padding:16px 20px; margin-bottom:24px; font-size:12px; color:var(--engraved); display:flex; gap:24px; flex-wrap:wrap; }
+  .gps-item span { color:var(--gold); }
+
+  .stats-bar { display:flex; gap:32px; padding:20px 0; margin-bottom:8px; }
+  .stat { text-align:center; }
+  .stat-num { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:300; color:var(--gold); display:block; }
+  .stat-label { font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--mist); }
+
+  .table-wrapper { overflow-x:auto; border:1px solid rgba(201,169,110,0.1); border-radius:2px; }
+  .records-table { width:100%; border-collapse:collapse; }
+  .records-table th { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); text-align:left; padding:10px 10px; border-bottom:1px solid rgba(201,169,110,0.2); font-weight:400; background:#2a2420; white-space:nowrap; }
+  .records-table td { padding:10px 10px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--parchment); font-family:'Cormorant Garamond',serif; font-size:16px; white-space:nowrap; background:#2a2420; }
+  .records-table tbody tr { cursor:pointer; }
+  .records-table tbody tr:hover td { background:#322c28; }
+  .records-table td[contenteditable="true"] { outline:none; cursor:text; }
+  .records-table td[contenteditable="true"]:focus { background:rgba(201,169,110,0.08); }
+  .record-name { font-weight:600; }
+  .record-dates { color:var(--engraved); font-style:italic; }
+  tr.has-warning td { background:rgba(180,60,40,0.07) !important; }
+  tr.has-warning:hover td { background:rgba(180,60,40,0.12) !important; }
+
+  .records-table th:nth-child(1),.records-table td:nth-child(1) { position:sticky; left:0; z-index:2; min-width:44px; }
+  .records-table th:nth-child(2),.records-table td:nth-child(2) { position:sticky; left:44px; z-index:2; min-width:90px; }
+  .records-table th:nth-child(3),.records-table td:nth-child(3) { position:sticky; left:134px; z-index:2; min-width:70px; }
+  .records-table th:nth-child(4),.records-table td:nth-child(4) { position:sticky; left:204px; z-index:2; min-width:140px; box-shadow:3px 0 8px rgba(0,0,0,0.4); }
+  .records-table th:nth-child(5),.records-table td:nth-child(5) { position:sticky; left:344px; z-index:2; min-width:120px; }
+  .records-table tr:hover td:nth-child(1),
+  .records-table tr:hover td:nth-child(2),
+  .records-table tr:hover td:nth-child(3),
+  .records-table tr:hover td:nth-child(4),
+  .records-table tr:hover td:nth-child(5) { background:#322c28; }
+
+  .conforme-btn { background:none; border:1px solid rgba(255,255,255,0.2); border-radius:2px; width:30px; height:30px; cursor:pointer; font-size:15px; display:inline-flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .conforme-btn.ok   { border-color:#7bc67a; color:#7bc67a; background:rgba(123,198,122,0.08); }
+  .conforme-btn.warn { border-color:#e8a090; color:#e8a090; background:rgba(232,160,144,0.08); }
+
+  .genre-select { background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,110,0.3); border-radius:2px; color:var(--cream); font-family:'Josefin Sans',sans-serif; font-size:13px; padding:4px 6px; cursor:pointer; width:52px; }
+  .genre-select:focus { outline:none; border-color:var(--gold); }
+
+  .btn { font-family:'Josefin Sans',sans-serif; font-size:10px; letter-spacing:3px; text-transform:uppercase; font-weight:400; padding:12px 24px; border:1px solid; cursor:pointer; transition:all 0.25s; background:transparent; }
+  .btn-primary { border-color:var(--gold); color:var(--gold); }
+  .btn-primary:hover { background:var(--gold); color:var(--stone); }
+  .btn-secondary { border-color:rgba(255,255,255,0.2); color:var(--mist); }
+  .btn-secondary:hover { border-color:var(--cream); color:var(--cream); }
+  .actions { display:flex; gap:12px; margin-top:28px; flex-wrap:wrap; }
+  .ornament-divider { text-align:center; margin:32px 0; color:rgba(201,169,110,0.3); font-size:18px; letter-spacing:12px; }
+  .cumul-note { font-size:11px; color:var(--mist); margin-top:8px; }
+
+  /* LIGHTBOX */
+  .lightbox-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93); z-index:1000; align-items:center; justify-content:center; }
+  .lightbox-overlay.active { display:flex; }
+  .lightbox-img { max-width:95vw; max-height:90vh; object-fit:contain; transform-origin:center center; cursor:grab; user-select:none; }
+  .lightbox-img.grabbing { cursor:grabbing; }
+  .lightbox-close { position:fixed; top:16px; right:20px; font-size:24px; color:var(--gold); cursor:pointer; z-index:1001; background:rgba(42,36,32,0.9); border:1px solid rgba(201,169,110,0.3); width:42px; height:42px; display:flex; align-items:center; justify-content:center; border-radius:2px; }
+  .lightbox-controls { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); display:flex; gap:10px; z-index:1001; }
+  .lightbox-btn { background:rgba(42,36,32,0.9); border:1px solid rgba(201,169,110,0.4); color:var(--gold); font-size:20px; width:44px; height:44px; border-radius:2px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .lightbox-btn:hover { background:rgba(201,169,110,0.2); }
+  .lightbox-zoom-label { background:rgba(42,36,32,0.9); border:1px solid rgba(201,169,110,0.2); color:var(--mist); font-size:11px; letter-spacing:2px; padding:0 14px; height:44px; display:flex; align-items:center; border-radius:2px; min-width:60px; justify-content:center; }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:900; align-items:center; justify-content:center; padding:20px; }
+  .modal-overlay.active { display:flex; }
+  .modal-box { background:#2a2420; border:1px solid rgba(201,169,110,0.35); border-radius:2px; width:100%; max-width:700px; max-height:92vh; overflow-y:auto; padding:32px; position:relative; }
+  .modal-title { font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:300; color:var(--parchment); margin-bottom:24px; padding-bottom:12px; border-bottom:1px solid rgba(201,169,110,0.2); display:flex; align-items:center; gap:12px; }
+  .modal-badge { font-family:'Josefin Sans',sans-serif; font-size:9px; letter-spacing:3px; text-transform:uppercase; padding:3px 10px; border-radius:2px; }
+  .modal-badge-add  { background:rgba(123,198,122,0.1); color:#7bc67a; border:1px solid rgba(123,198,122,0.3); }
+  .modal-badge-edit { background:rgba(201,169,110,0.15); color:var(--gold); border:1px solid rgba(201,169,110,0.3); }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .modal-field { display:flex; flex-direction:column; gap:5px; }
+  .modal-field.full { grid-column:1/-1; }
+  .modal-label { font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); }
+  .modal-section-title { grid-column:1/-1; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--mist); margin-top:8px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.05); }
+  .modal-input,.modal-select { background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,110,0.2); border-radius:2px; padding:9px 12px; color:var(--cream); font-family:'Josefin Sans',sans-serif; font-size:13px; outline:none; width:100%; }
+  .modal-input:focus,.modal-select:focus { border-color:var(--gold); }
+  .modal-select option { background:#2a2420; }
+  .modal-warning { grid-column:1/-1; background:rgba(180,60,40,0.1); border:1px solid rgba(180,60,40,0.3); border-radius:2px; padding:10px 14px; color:#e8a090; font-size:12px; display:none; }
+  .modal-warning.active { display:block; }
+  .modal-actions { display:flex; gap:12px; margin-top:24px; justify-content:flex-end; }
+  .modal-close-x { position:absolute; top:16px; right:16px; background:none; border:none; color:var(--mist); font-size:22px; cursor:pointer; }
+  .modal-close-x:hover { color:var(--cream); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-ornament">&#x2736; Projet de recensement &middot; v10 &#x2736;</div>
+  <h1>Pierres <em>Tombales</em></h1>
+  <div class="subtitle">Extraction automatique &middot; GPS &amp; Inscriptions &middot; Export Excel &middot; v10</div>
+</header>
+
+<div class="main-container">
+
+  <div class="api-key-box">
+    <div class="api-key-label">&#x1F511; Cl&eacute; API Anthropic</div>
+    <div class="api-key-row">
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" onclick="saveApiKey()">Enregistrer</button>
+    </div>
+    <div class="api-key-hint" id="apiKeyHint">Entrez votre cl&eacute; API pour activer l&rsquo;application</div>
+  </div>
+
+  <div class="drop-zone" id="dropZone" style="display:none">
+    <div class="drop-icon">&#x1FAA8;</div>
+    <div class="drop-title">D&eacute;posez une photo ici</div>
+    <div class="drop-sub">JPG &middot; PNG &middot; HEIC &mdash; cliquez ou glissez</div>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="processing-overlay" id="processingOverlay">
+    <div class="spinner"></div>
+    <div class="processing-text" id="processingText">Lecture des inscriptions en cours&hellip;</div>
+    <div class="processing-timer" id="processingTimer">0s</div>
+    <button class="btn btn-secondary" style="margin-top:16px" onclick="cancelAnalysis()">&#x2715; Annuler</button>
+  </div>
+
+  <div class="photo-preview" id="photoPreview">
+    <img id="previewImg" src="" alt="Aper&ccedil;u" title="Cliquez pour zoomer">
+    <div class="photo-hint">&#x1F50D; Cliquez sur l&rsquo;image pour zoomer</div>
+  </div>
+
+  <div class="results-section" id="resultsSection">
+    <div class="section-label">Coordonn&eacute;es GPS</div>
+    <div class="gps-box">
+      <div class="gps-item">Latitude : <span id="gpsLat">&mdash;</span></div>
+      <div class="gps-item">Longitude : <span id="gpsLng">&mdash;</span></div>
+      <div class="gps-item">Fichier : <span id="fileName">&mdash;</span></div>
+      <div class="gps-item">Date photo : <span id="photoDate">&mdash;</span></div>
+    </div>
+
+    <div class="section-label">Personnes identifi&eacute;es</div>
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-num" id="countPersons">0</span><span class="stat-label">Personnes</span></div>
+      <div class="stat"><span class="stat-num" id="countPhotos">0</span><span class="stat-label">Photos trait&eacute;es</span></div>
+      <div class="stat"><span class="stat-num" id="countTotal">0</span><span class="stat-label">Total cumulatif</span></div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th>&#x2713;</th>
+            <th>N&deg; Lot</th><th>Section</th><th>Famille</th><th>Nom</th>
+            <th>Pr&eacute;nom</th><th>Genre</th>
+            <th>Nais. Jour</th><th>Nais. Mois</th><th>Nais. Ann&eacute;e</th>
+            <th>D&eacute;c. Jour</th><th>D&eacute;c. Mois</th><th>D&eacute;c. Ann&eacute;e</th>
+            <th>&Eacute;poux/&Eacute;pouse de</th>
+            <th>Type Pierre</th><th>Couleur</th><th>Motif</th>
+            <th>Inscription</th>
+            <th>GPS Lat</th><th>GPS Lng</th><th>Fichier</th><th>Date Photo</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="ornament-divider">&middot; &middot; &middot;</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="exportExcel()">&#x2B07; Exporter Excel</button>
+      <button class="btn btn-secondary" onclick="openModalAdd()">&#xFF0B; Ajouter une personne</button>
+      <button class="btn btn-secondary" id="addPhotoBtn">+ Ajouter une photo</button>
+      <button class="btn btn-secondary" onclick="clearAll()">&#x2715; Effacer tout</button>
+    </div>
+    <div class="cumul-note" id="cumulNote"></div>
+  </div>
+
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox-overlay" id="lightboxOverlay">
+  <img class="lightbox-img" id="lightboxImg" src="" alt="Zoom">
+  <div class="lightbox-close" id="lightboxClose">&#x2715;</div>
+  <div class="lightbox-controls">
+    <button class="lightbox-btn" id="lbZoomIn">&#xFF0B;</button>
+    <div class="lightbox-zoom-label" id="lbZoomLabel">100%</div>
+    <button class="lightbox-btn" id="lbZoomOut">&#xFF0D;</button>
+    <button class="lightbox-btn" id="lbReset">&#x2299;</button>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <button class="modal-close-x" id="modalCloseX">&#x2715;</button>
+    <div class="modal-title">
+      <span id="modalTitleText">Ajouter une personne</span>
+      <span class="modal-badge modal-badge-add" id="modalBadge">Nouveau</span>
+    </div>
+    <div class="modal-grid">
+
+      <div class="modal-field"><label class="modal-label">N&deg; Lot</label><input class="modal-input" id="mLot"></div>
+      <div class="modal-field"><label class="modal-label">Section</label><input class="modal-input" id="mSection" maxlength="3"></div>
+      <div class="modal-field full"><label class="modal-label">Famille</label><input class="modal-input" id="mFamille"></div>
+      <div class="modal-field"><label class="modal-label">Nom</label><input class="modal-input" id="mNom"></div>
+      <div class="modal-field"><label class="modal-label">Pr&eacute;nom</label><input class="modal-input" id="mPrenom"></div>
+      <div class="modal-field">
+        <label class="modal-label">Genre</label>
+        <select class="modal-select" id="mGenre">
+          <option value="">&mdash;</option>
+          <option value="M">M &mdash; Masculin</option>
+          <option value="F">F &mdash; F&eacute;minin</option>
+        </select>
+      </div>
+      <div class="modal-field"><label class="modal-label">&Eacute;poux / &Eacute;pouse de</label><input class="modal-input" id="mEpoux"></div>
+
+      <div class="modal-section-title">Naissance</div>
+      <div class="modal-field"><label class="modal-label">Jour</label><input class="modal-input" id="mNaisJour" type="number" min="1" max="31"></div>
+      <div class="modal-field"><label class="modal-label">Mois</label><input class="modal-input" id="mNaisMois" type="number" min="1" max="12"></div>
+      <div class="modal-field full"><label class="modal-label">Ann&eacute;e</label><input class="modal-input" id="mNaisAnnee" type="number" min="1799" max="2100"></div>
+
+      <div class="modal-section-title">D&eacute;c&egrave;s</div>
+      <div class="modal-field"><label class="modal-label">Jour</label><input class="modal-input" id="mDecJour" type="number" min="1" max="31"></div>
+      <div class="modal-field"><label class="modal-label">Mois</label><input class="modal-input" id="mDecMois" type="number" min="1" max="12"></div>
+      <div class="modal-field full"><label class="modal-label">Ann&eacute;e</label><input class="modal-input" id="mDecAnnee" type="number" min="1799" max="2100"></div>
+
+      <div class="modal-warning" id="modalWarning"></div>
+
+      <div class="modal-section-title">Pierre</div>
+      <div class="modal-field">
+        <label class="modal-label">Type</label>
+        <select class="modal-select" id="mType">
+          <option value="">&mdash;</option>
+          <option>Granit</option><option>Marbre</option><option>Calcaire</option>
+          <option>B&eacute;ton</option><option>Bois</option><option>M&eacute;tal</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Couleur</label>
+        <select class="modal-select" id="mCouleur">
+          <option value="">&mdash;</option>
+          <option>Noir</option><option>Gris</option><option>Rose</option>
+          <option>Rouge</option><option>Blanc</option><option>Beige</option><option>Brun</option>
+        </select>
+      </div>
+      <div class="modal-field full">
+        <label class="modal-label">Motif visuel</label>
+        <select class="modal-select" id="mMotif">
+          <option value="">&mdash;</option>
+          <option>Fleur</option><option>Oiseau</option><option>Croix</option>
+          <option>Feuilles</option><option>Colombe</option><option>&Eacute;toile</option>
+          <option>Ancre</option><option>Anneaux</option><option>Autre</option>
+        </select>
+      </div>
+      <div class="modal-field full" id="motifAutreWrap" style="display:none">
+        <label class="modal-label">Pr&eacute;ciser le motif</label>
+        <input class="modal-input" id="mMotifAutre" placeholder="D&eacute;crivez le motif...">
+      </div>
+
+      <div class="modal-field full"><label class="modal-label">Inscription (texte grav&eacute;)</label><input class="modal-input" id="mInscription"></div>
+
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modalCancelBtn">Annuler</button>
+      <button class="btn btn-primary" id="modalSubmitBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+var sessionApiKey = '';
+var allRecords    = [];
+var photoCount    = 0;
+var currentGPS    = { lat: null, lng: null };
+var currentFileName = 'inconnu';
+var abortController = null;
+var analysisTimer   = null;
+var analysisSeconds = 0;
+var editIndex = -1;
+
+var lbScale = 1, lbDragging = false;
+var lbStartX = 0, lbStartY = 0, lbOffX = 0, lbOffY = 0;
+
+window.addEventListener('load', function() {
+
+  var dropZone  = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('drag-over'); });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function(e) { if (e.target.files[0]) handleFile(e.target.files[0]); });
+  document.getElementById('addPhotoBtn').addEventListener('click', function() { fileInput.click(); });
+
+  document.getElementById('previewImg').addEventListener('click', openLightbox);
+  document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+  document.getElementById('lightboxOverlay').addEventListener('click', function(e) { if (e.target === this) closeLightbox(); });
+  document.getElementById('lbZoomIn').addEventListener('click', function() { lbZoom(0.25); });
+  document.getElementById('lbZoomOut').addEventListener('click', function() { lbZoom(-0.25); });
+  document.getElementById('lbReset').addEventListener('click', lbResetView);
+
+  var lbImg = document.getElementById('lightboxImg');
+  lbImg.addEventListener('mousedown', function(e) {
+    lbDragging = true; lbStartX = e.clientX - lbOffX; lbStartY = e.clientY - lbOffY;
+    lbImg.classList.add('grabbing'); e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!lbDragging) return;
+    lbOffX = e.clientX - lbStartX; lbOffY = e.clientY - lbStartY; applyLbTransform();
+  });
+  document.addEventListener('mouseup', function() { lbDragging = false; document.getElementById('lightboxImg').classList.remove('grabbing'); });
+  lbImg.addEventListener('wheel', function(e) { e.preventDefault(); lbZoom(e.deltaY < 0 ? 0.15 : -0.15); }, { passive: false });
+
+  document.getElementById('modalCloseX').addEventListener('click', closeModal);
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('modalSubmitBtn').addEventListener('click', submitModal);
+  document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+  document.getElementById('mMotif').addEventListener('change', function() {
+    document.getElementById('motifAutreWrap').style.display = this.value === 'Autre' ? '' : 'none';
+  });
+  ['mNaisAnnee','mDecAnnee'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', refreshModalWarning);
+  });
+
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeLightbox(); closeModal(); } });
+});
+
+// ── API KEY ────────────────────────────────────────────────
+function saveApiKey() {
+  var input = document.getElementById('apiKeyInput');
+  var key = input.value.trim();
+  var hint = document.getElementById('apiKeyHint');
+  if (!key.startsWith('sk-ant-')) {
+    hint.textContent = 'Cle invalide — elle doit commencer par sk-ant-';
+    hint.className = 'api-key-hint'; return;
+  }
+  sessionApiKey = key;
+  input.value = '************************';
+  hint.textContent = 'Cle enregistree — vous pouvez analyser des photos';
+  hint.className = 'api-key-hint api-key-success';
+  document.getElementById('dropZone').style.display = '';
+}
+
+// ── FILE HANDLER ───────────────────────────────────────────
+async function handleFile(file) {
+  showError(''); showProcessing(true);
+  var url = URL.createObjectURL(file);
+  document.getElementById('previewImg').src = url;
+  document.getElementById('photoPreview').classList.add('active');
+
+  var gps = await extractGPS(file);
+  currentGPS = gps; currentFileName = file.name;
+  document.getElementById('gpsLat').textContent   = gps.lat ? gps.lat.toFixed(6) : 'Non disponible';
+  document.getElementById('gpsLng').textContent   = gps.lng ? gps.lng.toFixed(6) : 'Non disponible';
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('photoDate').textContent = gps.date || 'Non disponible';
+
+  var processedFile = file;
+  var n = file.name.toLowerCase();
+  if (file.type === 'image/heic' || file.type === 'image/heif' || n.endsWith('.heic') || n.endsWith('.heif')) {
+    try {
+      document.getElementById('processingText').textContent = 'Conversion HEIC en cours…';
+      var blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.90 });
+      processedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+    } catch(e) { showProcessing(false); showError('Erreur HEIC : ' + e.message); return; }
+    document.getElementById('processingText').textContent = 'Lecture des inscriptions en cours…';
+  }
+
+  var base64 = await fileToBase64(processedFile);
+  abortController = new AbortController();
+  startTimer();
+
+  try {
+    var persons = await callClaude(base64, 'image/jpeg', abortController.signal);
+    clearInterval(analysisTimer);
+    photoCount++;
+    appendRecords(persons, gps, file.name);
+    updateStats();
+    document.getElementById('resultsSection').classList.add('active');
+    showProcessing(false);
+    document.getElementById('cumulNote').textContent = 'Session active — ' + allRecords.length + ' personne(s) dans ' + photoCount + ' photo(s)';
+  } catch(err) {
+    clearInterval(analysisTimer); showProcessing(false);
+    showError(err.name === 'AbortError' ? 'Analyse annulee.' : 'Erreur API : ' + err.message);
+  }
+}
+
+// ── GPS ────────────────────────────────────────────────────
+function extractGPS(file) {
+  return new Promise(function(resolve) {
+    EXIF.getData(file, function() {
+      var lat = EXIF.getTag(this, 'GPSLatitude'), latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+      var lng = EXIF.getTag(this, 'GPSLongitude'), lngRef = EXIF.getTag(this, 'GPSLongitudeRef');
+      var dt  = EXIF.getTag(this, 'DateTimeOriginal') || EXIF.getTag(this, 'DateTime');
+      if (lat && lng) resolve({ lat: toDec(lat, latRef), lng: toDec(lng, lngRef), date: dt || null });
+      else resolve({ lat: null, lng: null, date: dt || null });
+    });
+  });
+}
+function toDec(dms, ref) { var d = dms[0] + dms[1]/60 + dms[2]/3600; return (ref === 'S' || ref === 'W') ? -d : d; }
+
+// ── CLAUDE API ─────────────────────────────────────────────
+async function callClaude(b64, mime, signal) {
+  var prompt = [
+    'Tu es un expert en lecture d inscriptions funeraires. Analyse cette photo de pierre tombale.',
+    '',
+    'REGLES :',
+    '1. FAMILLE = nom principal EN GROS sur la pierre. Identique pour toutes les personnes.',
+    '2. NOM = nom de famille individuel de chaque personne.',
+    '3. DATES : trois champs distincts jour / mois (1-12) / annee. Aucune date avant 1799.',
+    '4. DATE UNIQUE = toujours NAISSANCE (jamais deces).',
+    '5. INSCRIPTION = phrases et epitaphes uniquement, pas les noms ni dates.',
+    '6. EPOUX_DE = nom du conjoint si mentionne.',
+    '7. GENRE = M ou F selon le prenom, null si incertain.',
+    '8. TYPE_PIERRE = Granit, Marbre, Calcaire, Beton, Bois ou Metal.',
+    '9. COULEUR = couleur principale : Noir, Gris, Rose, Rouge, Blanc, Beige ou Brun.',
+    '10. MOTIF = Fleur, Oiseau, Croix, Feuilles, Colombe, Etoile, Ancre, Anneaux, Autre ou null.',
+    '',
+    'Champs requis pour chaque personne :',
+    'famille, nom, prenom, genre,',
+    'naissance_jour, naissance_mois, naissance_annee,',
+    'deces_jour, deces_mois, deces_annee,',
+    'epoux_de, type_pierre, couleur, motif, inscription',
+    '',
+    'Reponds UNIQUEMENT avec un tableau JSON valide. Aucun texte avant ou apres. Aucun backtick.',
+    'Utilise null si une valeur est absente. Retourne [] si aucune personne visible.'
+  ].join('\n');
+
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', signal: signal,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': sessionApiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+        { type: 'text', text: prompt }
+      ]}]
+    })
+  });
+
+  if (!resp.ok) { var e = await resp.json(); throw new Error(e.error ? e.error.message : resp.statusText); }
+  var data = await resp.json();
+  var raw = data.content.map(function(b) { return b.text || ''; }).join('').trim();
+  var clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+  return JSON.parse(clean);
+}
+
+// ── VALIDATION ─────────────────────────────────────────────
+function validateRecord(r) {
+  var w = [];
+  var ny = parseInt(r.naissance_annee), dy = parseInt(r.deces_annee);
+  if (ny && ny < 1799) w.push('Naissance avant 1799 (' + ny + ')');
+  if (dy && dy < 1799) w.push('Deces avant 1799 (' + dy + ')');
+  if (ny && dy && (dy - ny) > 120) w.push('Age > 120 ans (' + (dy - ny) + ')');
+  if (ny && dy && dy < ny) w.push('Deces avant naissance');
+  return w;
+}
+
+// ── MAKE ROW ───────────────────────────────────────────────
+function makeRow(rec, idx) {
+  var warnings = validateRecord(rec);
+  if (rec.conforme === undefined) rec.conforme = warnings.length === 0 ? 'ok' : 'warn';
+  var ok = rec.conforme === 'ok';
+
+  var tr = document.createElement('tr');
+  if (!ok) tr.classList.add('has-warning');
+  tr.setAttribute('data-idx', String(idx));
+  tr.addEventListener('click', function(e) {
+    var t = e.target.tagName.toLowerCase();
+    if (t === 'select' || t === 'button' || t === 'option') return;
+    if (e.target.getAttribute('contenteditable') === 'true') return;
+    openModalEdit(idx);
+  });
+
+  tr.innerHTML =
+    '<td><button class="conforme-btn ' + (ok ? 'ok' : 'warn') + '" title="' + (warnings.join(' | ') || 'Conforme') + '" onclick="toggleConforme(event,' + idx + ')">' + (ok ? '&#x2713;' : '&#x26A0;') + '</button></td>' +
+    '<td contenteditable="true">' + v(rec.lot) + '</td>' +
+    '<td contenteditable="true">' + v(rec.section) + '</td>' +
+    '<td contenteditable="true" class="record-name">' + v(rec.famille) + '</td>' +
+    '<td contenteditable="true">' + v(rec.nom) + '</td>' +
+    '<td contenteditable="true">' + v(rec.prenom) + '</td>' +
+    '<td><select class="genre-select" onclick="event.stopPropagation()" onchange="allRecords[' + idx + '].genre=this.value">' +
+      '<option value="">-</option>' +
+      '<option value="M"' + (rec.genre === 'M' ? ' selected' : '') + '>M</option>' +
+      '<option value="F"' + (rec.genre === 'F' ? ' selected' : '') + '>F</option>' +
+    '</select></td>' +
+    '<td contenteditable="true" class="record-dates">' + v(rec.naissance_jour) + '</td>' +
+    '<td contenteditable="true" class="record-dates">' + v(rec.naissance_mois) + '</td>' +
+    '<td contenteditable="true" class="record-dates">' + v(rec.naissance_annee) + '</td>' +
+    '<td contenteditable="true" class="record-dates">' + v(rec.deces_jour) + '</td>' +
+    '<td contenteditable="true" class="record-dates">' + v(rec.deces_mois) + '</td>' +
+    '<td contenteditable="true" class="record-dates">' + v(rec.deces_annee) + '</td>' +
+    '<td contenteditable="true">' + v(rec.epoux_de) + '</td>' +
+    '<td contenteditable="true">' + v(rec.type_pierre) + '</td>' +
+    '<td contenteditable="true">' + v(rec.couleur) + '</td>' +
+    '<td contenteditable="true">' + v(rec.motif) + '</td>' +
+    '<td contenteditable="true">' + v(rec.inscription) + '</td>' +
+    '<td>' + v(rec.lat) + '</td>' +
+    '<td>' + v(rec.lng) + '</td>' +
+    '<td>' + v(rec.fichier) + '</td>' +
+    '<td>' + v(rec.date_photo) + '</td>';
+  return tr;
+}
+
+function v(x) { return (x !== null && x !== undefined) ? String(x) : ''; }
+
+function appendRecords(persons, gps, filename) {
+  var tbody = document.getElementById('recordsBody');
+  var lot = filename.replace(/\.[^/.]+$/, '');
+  var sm  = filename.match(/[A-Za-z]/);
+  var sec = sm ? sm[0].toUpperCase() : '';
+  persons.forEach(function(p) {
+    var rec = {
+      lot: lot, section: sec,
+      famille: p.famille || '', nom: p.nom || '', prenom: p.prenom || '', genre: p.genre || '',
+      naissance_jour: p.naissance_jour || '', naissance_mois: p.naissance_mois || '', naissance_annee: p.naissance_annee || '',
+      deces_jour: p.deces_jour || '', deces_mois: p.deces_mois || '', deces_annee: p.deces_annee || '',
+      epoux_de: p.epoux_de || '',
+      type_pierre: p.type_pierre || '', couleur: p.couleur || '',
+      motif: p.motif || '', inscription: p.inscription || '',
+      lat: gps.lat ? gps.lat.toFixed(6) : '', lng: gps.lng ? gps.lng.toFixed(6) : '',
+      fichier: filename, date_photo: gps.date || ''
+    };
+    var idx = allRecords.push(rec) - 1;
+    tbody.appendChild(makeRow(rec, idx));
+  });
+}
+
+function updateStats() {
+  document.getElementById('countPersons').textContent = allRecords.length;
+  document.getElementById('countPhotos').textContent  = photoCount;
+  document.getElementById('countTotal').textContent   = allRecords.length;
+}
+
+function toggleConforme(e, idx) {
+  e.stopPropagation();
+  var btn = e.currentTarget, wasOk = btn.classList.contains('ok');
+  btn.classList.toggle('ok', !wasOk); btn.classList.toggle('warn', wasOk);
+  btn.innerHTML = wasOk ? '&#x26A0;' : '&#x2713;';
+  allRecords[idx].conforme = wasOk ? 'warn' : 'ok';
+  var tr = btn.closest('tr');
+  if (tr) { wasOk ? tr.classList.add('has-warning') : tr.classList.remove('has-warning'); }
+}
+
+// ── MODAL ──────────────────────────────────────────────────
+function fillModal(d) {
+  document.getElementById('mLot').value         = d.lot || '';
+  document.getElementById('mSection').value     = d.section || '';
+  document.getElementById('mFamille').value     = d.famille || '';
+  document.getElementById('mNom').value         = d.nom || '';
+  document.getElementById('mPrenom').value      = d.prenom || '';
+  document.getElementById('mGenre').value       = d.genre || '';
+  document.getElementById('mEpoux').value       = d.epoux_de || '';
+  document.getElementById('mNaisJour').value    = d.naissance_jour || '';
+  document.getElementById('mNaisMois').value    = d.naissance_mois || '';
+  document.getElementById('mNaisAnnee').value   = d.naissance_annee || '';
+  document.getElementById('mDecJour').value     = d.deces_jour || '';
+  document.getElementById('mDecMois').value     = d.deces_mois || '';
+  document.getElementById('mDecAnnee').value    = d.deces_annee || '';
+  document.getElementById('mType').value        = d.type_pierre || '';
+  document.getElementById('mCouleur').value     = d.couleur || '';
+  document.getElementById('mMotif').value       = d.motif || '';
+  document.getElementById('mMotifAutre').value  = d.motif_autre || '';
+  document.getElementById('motifAutreWrap').style.display = d.motif === 'Autre' ? '' : 'none';
+  document.getElementById('mInscription').value = d.inscription || '';
+  refreshModalWarning();
+}
+
+function refreshModalWarning() {
+  var tmp = { naissance_annee: document.getElementById('mNaisAnnee').value, deces_annee: document.getElementById('mDecAnnee').value };
+  var w = validateRecord(tmp);
+  var el = document.getElementById('modalWarning');
+  if (w.length) { el.textContent = w.join(' · '); el.classList.add('active'); }
+  else el.classList.remove('active');
+}
+
+function openModalAdd() {
+  editIndex = -1;
+  var lot = currentFileName !== 'inconnu' ? currentFileName.replace(/\.[^/.]+$/, '') : '';
+  var sm  = currentFileName.match(/[A-Za-z]/);
+  var fam = allRecords.length > 0 ? allRecords[allRecords.length - 1].famille : '';
+  fillModal({ lot: lot, section: sm ? sm[0].toUpperCase() : '', famille: fam });
+  document.getElementById('modalTitleText').textContent = 'Ajouter une personne';
+  document.getElementById('modalBadge').textContent = 'Nouveau';
+  document.getElementById('modalBadge').className = 'modal-badge modal-badge-add';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function openModalEdit(idx) {
+  editIndex = idx;
+  fillModal(allRecords[idx]);
+  document.getElementById('modalTitleText').textContent = 'Modifier la personne';
+  document.getElementById('modalBadge').textContent = 'Edition';
+  document.getElementById('modalBadge').className = 'modal-badge modal-badge-edit';
+  document.getElementById('modalOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function getModalData() {
+  return {
+    lot:             document.getElementById('mLot').value,
+    section:         document.getElementById('mSection').value,
+    famille:         document.getElementById('mFamille').value,
+    nom:             document.getElementById('mNom').value,
+    prenom:          document.getElementById('mPrenom').value,
+    genre:           document.getElementById('mGenre').value,
+    epoux_de:        document.getElementById('mEpoux').value,
+    naissance_jour:  document.getElementById('mNaisJour').value,
+    naissance_mois:  document.getElementById('mNaisMois').value,
+    naissance_annee: document.getElementById('mNaisAnnee').value,
+    deces_jour:      document.getElementById('mDecJour').value,
+    deces_mois:      document.getElementById('mDecMois').value,
+    deces_annee:     document.getElementById('mDecAnnee').value,
+    type_pierre:     document.getElementById('mType').value,
+    couleur:         document.getElementById('mCouleur').value,
+    motif:           document.getElementById('mMotif').value,
+    motif_autre:     document.getElementById('mMotifAutre').value,
+    inscription:     document.getElementById('mInscription').value
+  };
+}
+
+function submitModal() {
+  var d = getModalData();
+  if (editIndex >= 0) {
+    var rec = allRecords[editIndex];
+    Object.keys(d).forEach(function(k) { rec[k] = d[k]; });
+    rec.conforme = undefined;
+    var tbody = document.getElementById('recordsBody');
+    var old = tbody.querySelector('tr[data-idx="' + editIndex + '"]');
+    if (old) tbody.replaceChild(makeRow(rec, editIndex), old);
+  } else {
+    d.lat        = currentGPS.lat ? currentGPS.lat.toFixed(6) : '';
+    d.lng        = currentGPS.lng ? currentGPS.lng.toFixed(6) : '';
+    d.fichier    = currentFileName !== 'inconnu' ? currentFileName : '';
+    d.date_photo = currentGPS.date || '';
+    var idx = allRecords.push(d) - 1;
+    document.getElementById('recordsBody').appendChild(makeRow(d, idx));
+    updateStats();
+    document.getElementById('resultsSection').classList.add('active');
+  }
+  closeModal();
+}
+
+// ── LIGHTBOX ───────────────────────────────────────────────
+function openLightbox() {
+  var src = document.getElementById('previewImg').src; if (!src) return;
+  lbScale = 1; lbOffX = 0; lbOffY = 0;
+  document.getElementById('lightboxImg').src = src;
+  applyLbTransform();
+  document.getElementById('lightboxOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() { document.getElementById('lightboxOverlay').classList.remove('active'); document.body.style.overflow = ''; }
+function applyLbTransform() {
+  document.getElementById('lightboxImg').style.transform = 'translate(' + lbOffX + 'px,' + lbOffY + 'px) scale(' + lbScale + ')';
+  document.getElementById('lbZoomLabel').textContent = Math.round(lbScale * 100) + '%';
+}
+function lbZoom(d) { lbScale = Math.min(8, Math.max(0.3, lbScale + d)); applyLbTransform(); }
+function lbResetView() { lbScale = 1; lbOffX = 0; lbOffY = 0; applyLbTransform(); }
+
+// ── TIMER ──────────────────────────────────────────────────
+function startTimer() {
+  analysisSeconds = 0; clearInterval(analysisTimer);
+  var el = document.getElementById('processingTimer');
+  analysisTimer = setInterval(function() {
+    el.textContent = (++analysisSeconds) + 's';
+    if (analysisSeconds >= 60) {
+      clearInterval(analysisTimer);
+      if (abortController) { abortController.abort(); abortController = null; }
+      showProcessing(false); showError('Delai depasse (60s).');
+    }
+  }, 1000);
+}
+function cancelAnalysis() {
+  if (abortController) { abortController.abort(); abortController = null; }
+  clearInterval(analysisTimer); showProcessing(false); showError('Analyse annulee.');
+}
+
+// ── EXCEL EXPORT ───────────────────────────────────────────
+function exportExcel() {
+  var rows = document.getElementById('recordsBody').querySelectorAll('tr');
+  var data = [];
+  rows.forEach(function(tr) {
+    var c = tr.querySelectorAll('td');
+    var cb = c[0] ? c[0].querySelector('.conforme-btn') : null;
+    data.push({
+      'Conforme':          cb ? (cb.classList.contains('ok') ? 'OK' : 'VERIF') : '',
+      'N Lot':             c[1]  ? c[1].textContent  : '',
+      'Section':           c[2]  ? c[2].textContent  : '',
+      'Famille':           c[3]  ? c[3].textContent  : '',
+      'Nom':               c[4]  ? c[4].textContent  : '',
+      'Prenom':            c[5]  ? c[5].textContent  : '',
+      'Genre':             c[6]  ? (c[6].querySelector('select') ? c[6].querySelector('select').value : '') : '',
+      'Nais Jour':         c[7]  ? c[7].textContent  : '',
+      'Nais Mois':         c[8]  ? c[8].textContent  : '',
+      'Nais Annee':        c[9]  ? c[9].textContent  : '',
+      'Dec Jour':          c[10] ? c[10].textContent : '',
+      'Dec Mois':          c[11] ? c[11].textContent : '',
+      'Dec Annee':         c[12] ? c[12].textContent : '',
+      'Epoux Epouse de':   c[13] ? c[13].textContent : '',
+      'Type Pierre':       c[14] ? c[14].textContent : '',
+      'Couleur':           c[15] ? c[15].textContent : '',
+      'Motif':             c[16] ? c[16].textContent : '',
+      'Inscription':       c[17] ? c[17].textContent : '',
+      'GPS Lat':           c[18] ? c[18].textContent : '',
+      'GPS Lng':           c[19] ? c[19].textContent : '',
+      'Fichier':           c[20] ? c[20].textContent : '',
+      'Date Photo':        c[21] ? c[21].textContent : ''
+    });
+  });
+
+  var ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [
+    {wch:8},{wch:16},{wch:10},{wch:20},{wch:18},{wch:18},{wch:8},
+    {wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:14},
+    {wch:22},{wch:14},{wch:12},{wch:18},{wch:30},
+    {wch:14},{wch:14},{wch:22},{wch:20}
+  ];
+  ws['!autofilter'] = { ref: ws['!ref'] };
+
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  var R, C, addr;
+  for (C = range.s.c; C <= range.e.c; C++) {
+    addr = XLSX.utils.encode_cell({r:0, c:C});
+    if (ws[addr]) ws[addr].s = { fill:{fgColor:{rgb:'2A2420'}}, font:{bold:true, color:{rgb:'C9A96E'}, sz:11}, alignment:{horizontal:'center', vertical:'center'} };
+  }
+  for (R = 1; R <= range.e.r; R++) {
+    var bg = R % 2 === 0 ? 'F5F0E8' : 'FFFFFF';
+    for (C = range.s.c; C <= range.e.c; C++) {
+      addr = XLSX.utils.encode_cell({r:R, c:C});
+      if (!ws[addr]) ws[addr] = {t:'s', v:''};
+      ws[addr].s = { fill:{fgColor:{rgb:bg}}, font:{sz:10}, alignment:{vertical:'center'} };
+    }
+  }
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Recensement');
+  XLSX.writeFile(wb, 'pierres-tombales-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+// ── IMAGE COMPRESSION ──────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise(function(res, rej) {
+    var MAX = 4.5 * 1024 * 1024;
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function() {
+      URL.revokeObjectURL(url);
+      var canvas = document.createElement('canvas');
+      var w = img.width, h = img.height;
+      if (w > 4000 || h > 4000) { var r = Math.min(4000/w,4000/h); w=Math.round(w*r); h=Math.round(h*r); }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var q = 0.92, du;
+      do { du = canvas.toDataURL('image/jpeg', q); q -= 0.05; } while (du.length * 0.75 > MAX && q > 0.3);
+      res(du.split(',')[1]);
+    };
+    img.onerror = function() { rej(new Error('Impossible de lire image')); };
+    img.src = url;
+  });
+}
+
+// ── HELPERS ────────────────────────────────────────────────
+function showProcessing(show) {
+  document.getElementById('processingOverlay').classList.toggle('active', show);
+  if (show) document.getElementById('processingText').textContent = 'Lecture des inscriptions en cours…';
+}
+function showError(msg) {
+  var el = document.getElementById('errorMsg');
+  el.textContent = msg; el.classList.toggle('active', !!msg);
+}
+function clearAll() {
+  if (!confirm('Effacer toutes les donnees de la session ?')) return;
+  allRecords = []; photoCount = 0;
+  document.getElementById('recordsBody').innerHTML = '';
+  document.getElementById('resultsSection').classList.remove('active');
+  document.getElementById('photoPreview').classList.remove('active');
+  updateStats();
+}
+</script>
+</body>
+</html>
