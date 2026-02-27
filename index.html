@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pierres Tombales v11</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@200;300;400&display=swap');
+  :root { --stone:#2a2420; --gold:#c9a96e; --cream:#f5f0e8; --parchment:#ede5d0; --mist:#8a8478; --engraved:#b8ad9e; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--stone); color:var(--cream); font-family:'Josefin Sans',sans-serif; font-weight:300; min-height:100vh; overflow-x:hidden; }
+
+  header { text-align:center; padding:40px 24px 28px; border-bottom:1px solid rgba(201,169,110,0.2); }
+  .header-ornament { font-size:11px; letter-spacing:6px; color:var(--gold); text-transform:uppercase; margin-bottom:10px; }
+  header h1 { font-family:'Cormorant Garamond',serif; font-size:clamp(26px,5vw,48px); font-weight:300; letter-spacing:4px; }
+  header h1 em { font-style:italic; color:var(--gold); }
+  .subtitle { margin-top:8px; font-size:11px; letter-spacing:3px; color:var(--mist); text-transform:uppercase; }
+
+  .main-container { max-width:1300px; margin:0 auto; padding:32px 24px 60px; }
+
+  /* API KEY */
+  .api-key-box { border:1px solid rgba(201,169,110,0.3); border-radius:2px; padding:20px 24px; margin-bottom:20px; background:rgba(255,255,255,0.02); }
+  .api-key-label { font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); margin-bottom:10px; }
+  .api-key-row { display:flex; gap:10px; align-items:center; }
+  .api-key-row input { flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,110,0.2); border-radius:2px; padding:9px 12px; color:var(--cream); font-family:monospace; font-size:13px; outline:none; }
+  .api-key-row input:focus { border-color:var(--gold); }
+  .api-key-hint { font-size:11px; color:var(--mist); margin-top:8px; }
+  .api-key-success { color:#7bc67a !important; }
+
+  /* DROP ZONE */
+  .drop-zone { border:1px solid rgba(201,169,110,0.3); border-radius:2px; padding:40px 32px; text-align:center; cursor:pointer; transition:all 0.3s; background:rgba(255,255,255,0.02); position:relative; overflow:hidden; }
+  .drop-zone::before { content:''; position:absolute; inset:4px; border:1px solid rgba(201,169,110,0.1); pointer-events:none; }
+  .drop-zone:hover,.drop-zone.drag-over { border-color:var(--gold); background:rgba(201,169,110,0.04); }
+  .drop-icon { font-size:32px; margin-bottom:12px; opacity:0.6; }
+  .drop-title { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:300; color:var(--parchment); margin-bottom:6px; }
+  .drop-sub { font-size:11px; letter-spacing:2px; color:var(--mist); text-transform:uppercase; }
+  #fileInput { display:none; }
+
+  /* PROCESSING */
+  .processing-overlay { display:none; text-align:center; padding:36px; margin:20px 0; }
+  .processing-overlay.active { display:block; }
+  .spinner { width:34px; height:34px; border:1px solid rgba(201,169,110,0.2); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 16px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .processing-text { font-family:'Cormorant Garamond',serif; font-size:17px; font-style:italic; color:var(--engraved); }
+  .processing-timer { font-size:11px; letter-spacing:2px; color:var(--mist); margin-top:6px; }
+
+  /* ERROR */
+  .error-msg { background:rgba(180,60,40,0.1); border:1px solid rgba(180,60,40,0.3); border-radius:2px; padding:14px 18px; color:#e8a090; font-size:13px; margin:14px 0; display:none; }
+  .error-msg.active { display:block; }
+
+  /* RESULTS */
+  .results-section { display:none; margin-top:28px; animation:fadeUp 0.5s ease both; }
+  .results-section.active { display:block; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);} }
+  .section-label { font-size:10px; letter-spacing:4px; color:var(--gold); text-transform:uppercase; margin-bottom:14px; padding-bottom:7px; border-bottom:1px solid rgba(201,169,110,0.15); }
+
+  .gps-box { background:rgba(255,255,255,0.03); border:1px solid rgba(201,169,110,0.15); border-radius:2px; padding:14px 18px; margin-bottom:20px; font-size:12px; color:var(--engraved); display:flex; gap:20px; flex-wrap:wrap; }
+  .gps-item span { color:var(--gold); }
+
+  .stats-bar { display:flex; gap:28px; padding:16px 0; margin-bottom:6px; }
+  .stat { text-align:center; }
+  .stat-num { font-family:'Cormorant Garamond',serif; font-size:26px; font-weight:300; color:var(--gold); display:block; }
+  .stat-label { font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--mist); }
+
+  /* TABLE */
+  .table-wrapper { overflow-x:auto; border:1px solid rgba(201,169,110,0.1); border-radius:2px; }
+  .records-table { width:100%; border-collapse:collapse; }
+  .records-table th { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); text-align:left; padding:9px 9px; border-bottom:1px solid rgba(201,169,110,0.2); font-weight:400; background:#2a2420; white-space:nowrap; }
+  .records-table td { padding:9px 9px; border-bottom:1px solid rgba(255,255,255,0.04); color:var(--parchment); font-family:'Cormorant Garamond',serif; font-size:16px; white-space:nowrap; background:#2a2420; }
+  .records-table tbody tr:hover td { background:#322c28; }
+  .record-name { font-weight:600; }
+  .record-dates { color:var(--engraved); font-style:italic; }
+  tr.has-warning td { background:rgba(180,60,40,0.07) !important; }
+  tr.has-warning:hover td { background:rgba(180,60,40,0.12) !important; }
+
+  /* Sticky columns */
+  .records-table th:nth-child(1),.records-table td:nth-child(1) { position:sticky; left:0; z-index:2; min-width:40px; }
+  .records-table th:nth-child(2),.records-table td:nth-child(2) { position:sticky; left:40px; z-index:2; min-width:36px; }
+  .records-table th:nth-child(3),.records-table td:nth-child(3) { position:sticky; left:76px; z-index:2; min-width:90px; }
+  .records-table th:nth-child(4),.records-table td:nth-child(4) { position:sticky; left:166px; z-index:2; min-width:70px; }
+  .records-table th:nth-child(5),.records-table td:nth-child(5) { position:sticky; left:236px; z-index:2; min-width:140px; box-shadow:3px 0 8px rgba(0,0,0,0.4); }
+  .records-table tr:hover td:nth-child(1),
+  .records-table tr:hover td:nth-child(2),
+  .records-table tr:hover td:nth-child(3),
+  .records-table tr:hover td:nth-child(4),
+  .records-table tr:hover td:nth-child(5) { background:#322c28; }
+
+  /* Edit button per row */
+  .edit-btn { background:none; border:1px solid rgba(201,169,110,0.25); border-radius:2px; color:var(--mist); font-size:13px; width:26px; height:26px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .edit-btn:hover { border-color:var(--gold); color:var(--gold); background:rgba(201,169,110,0.08); }
+
+  /* Conforme button */
+  .conforme-btn { background:none; border:1px solid rgba(255,255,255,0.2); border-radius:2px; width:28px; height:28px; cursor:pointer; font-size:14px; display:inline-flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .conforme-btn.ok   { border-color:#7bc67a; color:#7bc67a; background:rgba(123,198,122,0.08); }
+  .conforme-btn.warn { border-color:#e8a090; color:#e8a090; background:rgba(232,160,144,0.08); }
+
+  .genre-select { background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,110,0.3); border-radius:2px; color:var(--cream); font-family:'Josefin Sans',sans-serif; font-size:13px; padding:3px 5px; cursor:pointer; width:50px; }
+  .genre-select:focus { outline:none; border-color:var(--gold); }
+
+  /* BUTTONS */
+  .btn { font-family:'Josefin Sans',sans-serif; font-size:10px; letter-spacing:3px; text-transform:uppercase; font-weight:400; padding:11px 22px; border:1px solid; cursor:pointer; transition:all 0.25s; background:transparent; }
+  .btn-primary { border-color:var(--gold); color:var(--gold); }
+  .btn-primary:hover { background:var(--gold); color:var(--stone); }
+  .btn-secondary { border-color:rgba(255,255,255,0.2); color:var(--mist); }
+  .btn-secondary:hover { border-color:var(--cream); color:var(--cream); }
+  .actions { display:flex; gap:10px; margin-top:24px; flex-wrap:wrap; }
+  .ornament-divider { text-align:center; margin:28px 0; color:rgba(201,169,110,0.3); font-size:16px; letter-spacing:10px; }
+  .cumul-note { font-size:11px; color:var(--mist); margin-top:6px; }
+
+  /* ═══════════════════════════════════════════
+     SIDE-BY-SIDE PANEL (photo + formulaire)
+     ═══════════════════════════════════════════ */
+  .sidepanel-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:800; }
+  .sidepanel-overlay.active { display:block; }
+
+  .sidepanel { display:none; position:fixed; top:0; right:0; bottom:0; width:100%; max-width:1100px; background:#231f1c; border-left:1px solid rgba(201,169,110,0.2); z-index:801; flex-direction:row; box-shadow:-8px 0 32px rgba(0,0,0,0.5); }
+  .sidepanel.active { display:flex; }
+
+  /* Left: zoomable photo */
+  .sp-photo { flex:1; min-width:0; background:#1a1714; display:flex; flex-direction:column; border-right:1px solid rgba(201,169,110,0.15); overflow:hidden; }
+  .sp-photo-viewport { flex:1; overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center; cursor:grab; }
+  .sp-photo-viewport.grabbing { cursor:grabbing; }
+  .sp-photo-img { max-width:none; max-height:none; transform-origin:center center; user-select:none; pointer-events:none; }
+  .sp-photo-controls { display:flex; align-items:center; gap:8px; padding:10px 14px; border-top:1px solid rgba(201,169,110,0.1); background:#1a1714; flex-shrink:0; }
+  .sp-zoom-btn { background:rgba(42,36,32,0.9); border:1px solid rgba(201,169,110,0.3); color:var(--gold); font-size:18px; width:36px; height:36px; border-radius:2px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .sp-zoom-btn:hover { background:rgba(201,169,110,0.15); }
+  .sp-zoom-label { font-size:11px; letter-spacing:2px; color:var(--mist); min-width:46px; text-align:center; }
+  .sp-photo-hint { font-size:10px; letter-spacing:1px; color:var(--mist); text-transform:uppercase; padding:0 14px 10px; text-align:center; flex-shrink:0; }
+
+  /* Right: form */
+  .sp-form { width:380px; flex-shrink:0; display:flex; flex-direction:column; overflow:hidden; }
+  .sp-form-header { padding:18px 20px 14px; border-bottom:1px solid rgba(201,169,110,0.15); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .sp-form-title { font-family:'Cormorant Garamond',serif; font-size:18px; font-weight:300; color:var(--parchment); }
+  .sp-form-close { background:none; border:none; color:var(--mist); font-size:20px; cursor:pointer; }
+  .sp-form-close:hover { color:var(--cream); }
+  .sp-form-body { flex:1; overflow-y:auto; padding:16px 20px; }
+  .sp-form-footer { padding:14px 20px; border-top:1px solid rgba(201,169,110,0.15); display:flex; gap:10px; justify-content:flex-end; flex-shrink:0; }
+
+  /* Form fields (shared by modal and sidepanel) */
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-field { display:flex; flex-direction:column; gap:4px; }
+  .form-field.full { grid-column:1/-1; }
+  .form-label { font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--gold); }
+  .form-section { grid-column:1/-1; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:var(--mist); margin-top:6px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.05); }
+  .form-input,.form-select { background:rgba(255,255,255,0.05); border:1px solid rgba(201,169,110,0.2); border-radius:2px; padding:8px 10px; color:var(--cream); font-family:'Josefin Sans',sans-serif; font-size:13px; outline:none; width:100%; }
+  .form-input:focus,.form-select:focus { border-color:var(--gold); }
+  .form-select option { background:#2a2420; }
+  .form-warning { grid-column:1/-1; background:rgba(180,60,40,0.1); border:1px solid rgba(180,60,40,0.3); border-radius:2px; padding:8px 12px; color:#e8a090; font-size:11px; display:none; }
+  .form-warning.active { display:block; }
+
+  /* Badge */
+  .modal-badge { font-family:'Josefin Sans',sans-serif; font-size:9px; letter-spacing:3px; text-transform:uppercase; padding:3px 9px; border-radius:2px; }
+  .modal-badge-add  { background:rgba(123,198,122,0.1); color:#7bc67a; border:1px solid rgba(123,198,122,0.3); }
+  .modal-badge-edit { background:rgba(201,169,110,0.15); color:var(--gold); border:1px solid rgba(201,169,110,0.3); }
+
+  /* STANDALONE MODAL (add new, no photo context) */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:900; align-items:center; justify-content:center; padding:20px; }
+  .modal-overlay.active { display:flex; }
+  .modal-box { background:#2a2420; border:1px solid rgba(201,169,110,0.35); border-radius:2px; width:100%; max-width:680px; max-height:92vh; overflow-y:auto; padding:28px; position:relative; }
+  .modal-title { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:300; color:var(--parchment); margin-bottom:20px; padding-bottom:10px; border-bottom:1px solid rgba(201,169,110,0.2); display:flex; align-items:center; gap:10px; }
+  .modal-close-x { position:absolute; top:14px; right:14px; background:none; border:none; color:var(--mist); font-size:20px; cursor:pointer; }
+  .modal-close-x:hover { color:var(--cream); }
+  .modal-actions { display:flex; gap:10px; margin-top:20px; justify-content:flex-end; }
+
+  /* Thumbnail strip in sidepanel */
+  .sp-photo-name { font-size:10px; letter-spacing:1px; color:var(--mist); padding:8px 14px 0; text-align:center; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-ornament">&#x2736; Projet de recensement &middot; v11 &#x2736;</div>
+  <h1>Pierres <em>Tombales</em></h1>
+  <div class="subtitle">Extraction automatique &middot; GPS &amp; Inscriptions &middot; Export Excel &middot; v11</div>
+</header>
+
+<div class="main-container">
+
+  <div class="api-key-box">
+    <div class="api-key-label">&#x1F511; Cl&eacute; API Anthropic</div>
+    <div class="api-key-row">
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" onclick="saveApiKey()">Enregistrer</button>
+    </div>
+    <div class="api-key-hint" id="apiKeyHint">Entrez votre cl&eacute; API pour activer l&rsquo;application</div>
+  </div>
+
+  <div class="drop-zone" id="dropZone" style="display:none">
+    <div class="drop-icon">&#x1FAA8;</div>
+    <div class="drop-title">D&eacute;posez une photo ici</div>
+    <div class="drop-sub">JPG &middot; PNG &middot; HEIC &mdash; cliquez ou glissez</div>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="processing-overlay" id="processingOverlay">
+    <div class="spinner"></div>
+    <div class="processing-text" id="processingText">Lecture des inscriptions en cours&hellip;</div>
+    <div class="processing-timer" id="processingTimer">0s</div>
+    <button class="btn btn-secondary" style="margin-top:14px" onclick="cancelAnalysis()">&#x2715; Annuler</button>
+  </div>
+
+  <div class="results-section" id="resultsSection">
+    <div class="section-label">Coordonn&eacute;es GPS</div>
+    <div class="gps-box">
+      <div class="gps-item">Latitude&nbsp;: <span id="gpsLat">&mdash;</span></div>
+      <div class="gps-item">Longitude&nbsp;: <span id="gpsLng">&mdash;</span></div>
+      <div class="gps-item">Fichier&nbsp;: <span id="fileName">&mdash;</span></div>
+      <div class="gps-item">Date photo&nbsp;: <span id="photoDate">&mdash;</span></div>
+    </div>
+
+    <div class="section-label">Personnes identifi&eacute;es</div>
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-num" id="countPersons">0</span><span class="stat-label">Personnes</span></div>
+      <div class="stat"><span class="stat-num" id="countPhotos">0</span><span class="stat-label">Photos trait&eacute;es</span></div>
+      <div class="stat"><span class="stat-num" id="countTotal">0</span><span class="stat-label">Total cumulatif</span></div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th>&#x2713;</th><th>&#x270E;</th>
+            <th>N&deg;&nbsp;Lot</th><th>Section</th><th>Famille</th><th>Nom</th>
+            <th>Pr&eacute;nom</th><th>Genre</th>
+            <th>Nais.&nbsp;J</th><th>Nais.&nbsp;M</th><th>Nais.&nbsp;A</th>
+            <th>D&eacute;c.&nbsp;J</th><th>D&eacute;c.&nbsp;M</th><th>D&eacute;c.&nbsp;A</th>
+            <th>&Eacute;poux/&Eacute;pouse&nbsp;de</th>
+            <th>Type&nbsp;Pierre</th><th>Couleur</th><th>Motif</th>
+            <th>Inscription</th>
+            <th>GPS&nbsp;Lat</th><th>GPS&nbsp;Lng</th><th>Fichier</th><th>Date&nbsp;Photo</th>
+          </tr>
+        </thead>
+        <tbody id="recordsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="ornament-divider">&middot; &middot; &middot;</div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="exportExcel()">&#x2B07; Exporter Excel</button>
+      <button class="btn btn-secondary" onclick="openModalAdd()">&#xFF0B; Ajouter une personne</button>
+      <button class="btn btn-secondary" id="addPhotoBtn">+ Ajouter une photo</button>
+      <button class="btn btn-secondary" onclick="clearAll()">&#x2715; Effacer tout</button>
+    </div>
+    <div class="cumul-note" id="cumulNote"></div>
+  </div>
+
+</div>
+
+<!-- ═══ SIDE PANEL (photo + form side by side) ═══ -->
+<div class="sidepanel-overlay" id="spOverlay"></div>
+<div class="sidepanel" id="sidepanel">
+
+  <!-- Left: photo -->
+  <div class="sp-photo">
+    <div class="sp-photo-name" id="spPhotoName"></div>
+    <div class="sp-photo-viewport" id="spViewport">
+      <img class="sp-photo-img" id="spImg" src="" alt="Photo">
+    </div>
+    <div class="sp-photo-controls">
+      <button class="sp-zoom-btn" id="spZoomIn">&#xFF0B;</button>
+      <span class="sp-zoom-label" id="spZoomLabel">100%</span>
+      <button class="sp-zoom-btn" id="spZoomOut">&#xFF0D;</button>
+      <button class="sp-zoom-btn" id="spZoomReset" title="R&eacute;initialiser">&#x2299;</button>
+    </div>
+    <div class="sp-photo-hint">Molette pour zoomer &middot; glisser pour d&eacute;placer</div>
+  </div>
+
+  <!-- Right: form -->
+  <div class="sp-form">
+    <div class="sp-form-header">
+      <div>
+        <div class="sp-form-title" id="spFormTitle">Modifier la personne</div>
+        <span class="modal-badge modal-badge-edit" id="spBadge">Edition</span>
+      </div>
+      <button class="sp-form-close" id="spClose">&#x2715;</button>
+    </div>
+    <div class="sp-form-body">
+      <div class="form-grid" id="spFormGrid">
+        <div class="form-field"><label class="form-label">N&deg; Lot</label><input class="form-input" id="spLot"></div>
+        <div class="form-field"><label class="form-label">Section</label><input class="form-input" id="spSection" maxlength="3"></div>
+        <div class="form-field full"><label class="form-label">Famille</label><input class="form-input" id="spFamille"></div>
+        <div class="form-field"><label class="form-label">Nom</label><input class="form-input" id="spNom"></div>
+        <div class="form-field"><label class="form-label">Pr&eacute;nom</label><input class="form-input" id="spPrenom"></div>
+        <div class="form-field">
+          <label class="form-label">Genre</label>
+          <select class="form-select" id="spGenre">
+            <option value="">&mdash;</option>
+            <option value="M">M</option><option value="F">F</option>
+          </select>
+        </div>
+        <div class="form-field"><label class="form-label">&Eacute;poux / &Eacute;pouse de</label><input class="form-input" id="spEpoux"></div>
+        <div class="form-section">Naissance</div>
+        <div class="form-field"><label class="form-label">Jour</label><input class="form-input" id="spNaisJour" type="number" min="1" max="31"></div>
+        <div class="form-field"><label class="form-label">Mois</label><input class="form-input" id="spNaisMois" type="number" min="1" max="12"></div>
+        <div class="form-field full"><label class="form-label">Ann&eacute;e</label><input class="form-input" id="spNaisAnnee" type="number" min="1799" max="2100"></div>
+        <div class="form-section">D&eacute;c&egrave;s</div>
+        <div class="form-field"><label class="form-label">Jour</label><input class="form-input" id="spDecJour" type="number" min="1" max="31"></div>
+        <div class="form-field"><label class="form-label">Mois</label><input class="form-input" id="spDecMois" type="number" min="1" max="12"></div>
+        <div class="form-field full"><label class="form-label">Ann&eacute;e</label><input class="form-input" id="spDecAnnee" type="number" min="1799" max="2100"></div>
+        <div class="form-warning" id="spWarning"></div>
+        <div class="form-section">Pierre</div>
+        <div class="form-field">
+          <label class="form-label">Type</label>
+          <select class="form-select" id="spType">
+            <option value="">&mdash;</option>
+            <option>Granit</option><option>Marbre</option><option>Calcaire</option>
+            <option>B&eacute;ton</option><option>Bois</option><option>M&eacute;tal</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Couleur</label>
+          <select class="form-select" id="spCouleur">
+            <option value="">&mdash;</option>
+            <option>Noir</option><option>Gris</option><option>Rose</option>
+            <option>Rouge</option><option>Blanc</option><option>Beige</option><option>Brun</option>
+          </select>
+        </div>
+        <div class="form-field full">
+          <label class="form-label">Motif visuel</label>
+          <select class="form-select" id="spMotif">
+            <option value="">&mdash;</option>
+            <option>Fleur</option><option>Oiseau</option><option>Croix</option>
+            <option>Feuilles</option><option>Colombe</option><option>&Eacute;toile</option>
+            <option>Ancre</option><option>Anneaux</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="form-field full" id="spMotifAutreWrap" style="display:none">
+          <label class="form-label">Pr&eacute;ciser le motif</label>
+          <input class="form-input" id="spMotifAutre">
+        </div>
+        <div class="form-field full"><label class="form-label">Inscription</label><input class="form-input" id="spInscription"></div>
+      </div>
+    </div>
+    <div class="sp-form-footer">
+      <button class="btn btn-secondary" id="spCancelBtn">Annuler</button>
+      <button class="btn btn-primary" id="spSaveBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STANDALONE MODAL (add new) ═══ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <button class="modal-close-x" id="modalCloseX">&#x2715;</button>
+    <div class="modal-title">
+      <span id="modalTitleText">Ajouter une personne</span>
+      <span class="modal-badge modal-badge-add" id="modalBadge">Nouveau</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-field"><label class="form-label">N&deg; Lot</label><input class="form-input" id="mLot"></div>
+      <div class="form-field"><label class="form-label">Section</label><input class="form-input" id="mSection" maxlength="3"></div>
+      <div class="form-field full"><label class="form-label">Famille</label><input class="form-input" id="mFamille"></div>
+      <div class="form-field"><label class="form-label">Nom</label><input class="form-input" id="mNom"></div>
+      <div class="form-field"><label class="form-label">Pr&eacute;nom</label><input class="form-input" id="mPrenom"></div>
+      <div class="form-field">
+        <label class="form-label">Genre</label>
+        <select class="form-select" id="mGenre">
+          <option value="">&mdash;</option>
+          <option value="M">M</option><option value="F">F</option>
+        </select>
+      </div>
+      <div class="form-field"><label class="form-label">&Eacute;poux / &Eacute;pouse de</label><input class="form-input" id="mEpoux"></div>
+      <div class="form-section">Naissance</div>
+      <div class="form-field"><label class="form-label">Jour</label><input class="form-input" id="mNaisJour" type="number" min="1" max="31"></div>
+      <div class="form-field"><label class="form-label">Mois</label><input class="form-input" id="mNaisMois" type="number" min="1" max="12"></div>
+      <div class="form-field full"><label class="form-label">Ann&eacute;e</label><input class="form-input" id="mNaisAnnee" type="number" min="1799" max="2100"></div>
+      <div class="form-section">D&eacute;c&egrave;s</div>
+      <div class="form-field"><label class="form-label">Jour</label><input class="form-input" id="mDecJour" type="number" min="1" max="31"></div>
+      <div class="form-field"><label class="form-label">Mois</label><input class="form-input" id="mDecMois" type="number" min="1" max="12"></div>
+      <div class="form-field full"><label class="form-label">Ann&eacute;e</label><input class="form-input" id="mDecAnnee" type="number" min="1799" max="2100"></div>
+      <div class="form-warning" id="mWarning"></div>
+      <div class="form-section">Pierre</div>
+      <div class="form-field">
+        <label class="form-label">Type</label>
+        <select class="form-select" id="mType">
+          <option value="">&mdash;</option>
+          <option>Granit</option><option>Marbre</option><option>Calcaire</option>
+          <option>B&eacute;ton</option><option>Bois</option><option>M&eacute;tal</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Couleur</label>
+        <select class="form-select" id="mCouleur">
+          <option value="">&mdash;</option>
+          <option>Noir</option><option>Gris</option><option>Rose</option>
+          <option>Rouge</option><option>Blanc</option><option>Beige</option><option>Brun</option>
+        </select>
+      </div>
+      <div class="form-field full">
+        <label class="form-label">Motif visuel</label>
+        <select class="form-select" id="mMotif">
+          <option value="">&mdash;</option>
+          <option>Fleur</option><option>Oiseau</option><option>Croix</option>
+          <option>Feuilles</option><option>Colombe</option><option>&Eacute;toile</option>
+          <option>Ancre</option><option>Anneaux</option><option>Autre</option>
+        </select>
+      </div>
+      <div class="form-field full" id="mMotifAutreWrap" style="display:none">
+        <label class="form-label">Pr&eacute;ciser le motif</label>
+        <input class="form-input" id="mMotifAutre">
+      </div>
+      <div class="form-field full"><label class="form-label">Inscription</label><input class="form-input" id="mInscription"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="modalCancelBtn">Annuler</button>
+      <button class="btn btn-primary" id="modalSubmitBtn">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+var sessionApiKey   = '';
+var allRecords      = [];
+var photoCount      = 0;
+var currentGPS      = { lat: null, lng: null };
+var currentFileName = 'inconnu';
+var currentPhotoSrc = '';
+var abortController = null;
+var analysisTimer   = null;
+var analysisSeconds = 0;
+var editIndex       = -1;   // used by sidepanel
+var addEditIndex    = -1;   // used by standalone modal
+
+// Sidepanel zoom/drag
+var spScale = 1, spDragging = false;
+var spStartX = 0, spStartY = 0, spOffX = 0, spOffY = 0;
+
+// ── INIT ───────────────────────────────────────────────────
+window.addEventListener('load', function() {
+
+  var dropZone  = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('drag-over'); });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', function(e) { if (e.target.files[0]) handleFile(e.target.files[0]); });
+  document.getElementById('addPhotoBtn').addEventListener('click', function() { fileInput.click(); });
+
+  // Sidepanel zoom controls
+  document.getElementById('spZoomIn').addEventListener('click',    function() { spZoom(0.25); });
+  document.getElementById('spZoomOut').addEventListener('click',   function() { spZoom(-0.25); });
+  document.getElementById('spZoomReset').addEventListener('click', spResetView);
+
+  var vp = document.getElementById('spViewport');
+  vp.addEventListener('wheel', function(e) { e.preventDefault(); spZoom(e.deltaY < 0 ? 0.15 : -0.15); }, { passive: false });
+  vp.addEventListener('mousedown', function(e) {
+    spDragging = true; spStartX = e.clientX - spOffX; spStartY = e.clientY - spOffY;
+    vp.classList.add('grabbing'); e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!spDragging) return;
+    spOffX = e.clientX - spStartX; spOffY = e.clientY - spStartY; applySpTransform();
+  });
+  document.addEventListener('mouseup', function() { spDragging = false; document.getElementById('spViewport').classList.remove('grabbing'); });
+
+  // Sidepanel close
+  document.getElementById('spClose').addEventListener('click',     closeSidepanel);
+  document.getElementById('spCancelBtn').addEventListener('click', closeSidepanel);
+  document.getElementById('spSaveBtn').addEventListener('click',   saveSidepanel);
+  document.getElementById('spOverlay').addEventListener('click',   closeSidepanel);
+
+  document.getElementById('spMotif').addEventListener('change', function() {
+    document.getElementById('spMotifAutreWrap').style.display = this.value === 'Autre' ? '' : 'none';
+  });
+  ['spNaisAnnee','spDecAnnee'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', function() { refreshWarning('sp'); });
+  });
+
+  // Standalone modal
+  document.getElementById('modalCloseX').addEventListener('click',    closeModal);
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+  document.getElementById('modalSubmitBtn').addEventListener('click', saveModal);
+  document.getElementById('modalOverlay').addEventListener('click',   function(e) { if (e.target === this) closeModal(); });
+  document.getElementById('mMotif').addEventListener('change', function() {
+    document.getElementById('mMotifAutreWrap').style.display = this.value === 'Autre' ? '' : 'none';
+  });
+  ['mNaisAnnee','mDecAnnee'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', function() { refreshWarning('m'); });
+  });
+
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closeSidepanel(); closeModal(); } });
+});
+
+// ── API KEY ────────────────────────────────────────────────
+function saveApiKey() {
+  var input = document.getElementById('apiKeyInput');
+  var key = input.value.trim();
+  var hint = document.getElementById('apiKeyHint');
+  if (!key.startsWith('sk-ant-')) {
+    hint.textContent = 'Cle invalide — doit commencer par sk-ant-';
+    hint.className = 'api-key-hint'; return;
+  }
+  sessionApiKey = key;
+  input.value = '************************';
+  hint.textContent = 'Cle enregistree — vous pouvez analyser des photos';
+  hint.className = 'api-key-hint api-key-success';
+  document.getElementById('dropZone').style.display = '';
+}
+
+// ── FILE HANDLER ───────────────────────────────────────────
+async function handleFile(file) {
+  showError(''); showProcessing(true);
+  currentPhotoSrc = URL.createObjectURL(file);
+
+  var gps = await extractGPS(file);
+  currentGPS = gps; currentFileName = file.name;
+  document.getElementById('gpsLat').textContent    = gps.lat ? gps.lat.toFixed(6) : 'Non disponible';
+  document.getElementById('gpsLng').textContent    = gps.lng ? gps.lng.toFixed(6) : 'Non disponible';
+  document.getElementById('fileName').textContent  = file.name;
+  document.getElementById('photoDate').textContent = gps.date || 'Non disponible';
+
+  var processedFile = file;
+  var n = file.name.toLowerCase();
+  if (file.type === 'image/heic' || file.type === 'image/heif' || n.endsWith('.heic') || n.endsWith('.heif')) {
+    try {
+      document.getElementById('processingText').textContent = 'Conversion HEIC…';
+      var blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.90 });
+      processedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+      currentPhotoSrc = URL.createObjectURL(processedFile);
+    } catch(e) { showProcessing(false); showError('Erreur HEIC : ' + e.message); return; }
+    document.getElementById('processingText').textContent = 'Lecture des inscriptions…';
+  }
+
+  var base64 = await fileToBase64(processedFile);
+  abortController = new AbortController();
+  startTimer();
+
+  try {
+    var persons = await callClaude(base64, 'image/jpeg', abortController.signal);
+    clearInterval(analysisTimer);
+    photoCount++;
+    appendRecords(persons, gps, file.name);
+    updateStats();
+    document.getElementById('resultsSection').classList.add('active');
+    showProcessing(false);
+    document.getElementById('cumulNote').textContent = 'Session active — ' + allRecords.length + ' personne(s) dans ' + photoCount + ' photo(s)';
+  } catch(err) {
+    clearInterval(analysisTimer); showProcessing(false);
+    showError(err.name === 'AbortError' ? 'Analyse annulee.' : 'Erreur API : ' + err.message);
+  }
+}
+
+// ── GPS ────────────────────────────────────────────────────
+function extractGPS(file) {
+  return new Promise(function(resolve) {
+    EXIF.getData(file, function() {
+      var lat = EXIF.getTag(this, 'GPSLatitude'), latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+      var lng = EXIF.getTag(this, 'GPSLongitude'), lngRef = EXIF.getTag(this, 'GPSLongitudeRef');
+      var dt  = EXIF.getTag(this, 'DateTimeOriginal') || EXIF.getTag(this, 'DateTime');
+      if (lat && lng) resolve({ lat: toDec(lat, latRef), lng: toDec(lng, lngRef), date: dt || null });
+      else resolve({ lat: null, lng: null, date: dt || null });
+    });
+  });
+}
+function toDec(dms, ref) { var d = dms[0]+dms[1]/60+dms[2]/3600; return (ref==='S'||ref==='W')?-d:d; }
+
+// ── CLAUDE API ─────────────────────────────────────────────
+async function callClaude(b64, mime, signal) {
+  var lines = [
+    'Tu es un expert en lecture d inscriptions funeraires. Analyse cette photo de pierre tombale.',
+    '',
+    'REGLES :',
+    '1. FAMILLE = nom principal EN GROS sur la pierre. Identique pour toutes les personnes.',
+    '2. NOM = nom de famille individuel.',
+    '3. DATES : trois champs jour / mois (1-12) / annee. Aucune date avant 1799.',
+    '4. DATE UNIQUE = toujours NAISSANCE (jamais deces).',
+    '5. INSCRIPTION = phrases et epitaphes uniquement, pas les noms ni dates.',
+    '6. EPOUX_DE = nom du conjoint si mentionne.',
+    '7. GENRE = M ou F selon le prenom, null si incertain.',
+    '8. TYPE_PIERRE = Granit, Marbre, Calcaire, Beton, Bois ou Metal.',
+    '9. COULEUR = Noir, Gris, Rose, Rouge, Blanc, Beige ou Brun.',
+    '10. MOTIF = Fleur, Oiseau, Croix, Feuilles, Colombe, Etoile, Ancre, Anneaux, Autre ou null.',
+    '',
+    'Champs : famille, nom, prenom, genre, naissance_jour, naissance_mois, naissance_annee,',
+    'deces_jour, deces_mois, deces_annee, epoux_de, type_pierre, couleur, motif, inscription',
+    '',
+    'Reponds UNIQUEMENT avec un tableau JSON valide. Aucun texte. Aucun backtick.',
+    'Utilise null si absent. Retourne [] si aucune personne.'
+  ];
+  var prompt = lines.join('\n');
+
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', signal: signal,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': sessionApiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 4000,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+        { type: 'text', text: prompt }
+      ]}]
+    })
+  });
+
+  if (!resp.ok) { var e = await resp.json(); throw new Error(e.error ? e.error.message : resp.statusText); }
+  var data = await resp.json();
+  var raw = data.content.map(function(b) { return b.text || ''; }).join('').trim();
+  var clean = raw.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```\s*$/i,'').trim();
+  return JSON.parse(clean);
+}
+
+// ── VALIDATION ─────────────────────────────────────────────
+function validateRecord(r) {
+  var w = [];
+  var ny = parseInt(r.naissance_annee), dy = parseInt(r.deces_annee);
+  if (ny && ny < 1799) w.push('Naissance avant 1799 (' + ny + ')');
+  if (dy && dy < 1799) w.push('Deces avant 1799 (' + dy + ')');
+  if (ny && dy && (dy-ny) > 120) w.push('Age > 120 ans (' + (dy-ny) + ')');
+  if (ny && dy && dy < ny) w.push('Deces avant naissance');
+  return w;
+}
+
+function refreshWarning(prefix) {
+  var ny = document.getElementById(prefix + 'NaisAnnee').value;
+  var dy = document.getElementById(prefix + 'DecAnnee').value;
+  var w  = validateRecord({ naissance_annee: ny, deces_annee: dy });
+  var el = document.getElementById(prefix === 'sp' ? 'spWarning' : 'mWarning');
+  if (w.length) { el.textContent = w.join(' · '); el.classList.add('active'); }
+  else el.classList.remove('active');
+}
+
+// ── RECORDS ────────────────────────────────────────────────
+function s(x) { return (x !== null && x !== undefined) ? String(x) : ''; }
+
+function makeRow(rec, idx) {
+  var warnings = validateRecord(rec);
+  if (rec.conforme === undefined) rec.conforme = warnings.length === 0 ? 'ok' : 'warn';
+  var ok = rec.conforme === 'ok';
+
+  var tr = document.createElement('tr');
+  if (!ok) tr.classList.add('has-warning');
+  tr.setAttribute('data-idx', String(idx));
+
+  tr.innerHTML =
+    '<td><button class="conforme-btn ' + (ok?'ok':'warn') + '" title="' + (warnings.join(' | ')||'Conforme') + '" onclick="toggleConforme(event,' + idx + ')">' + (ok?'&#x2713;':'&#x26A0;') + '</button></td>' +
+    '<td><button class="edit-btn" title="Modifier" onclick="openSidepanel(' + idx + ')">&#x270E;</button></td>' +
+    '<td>' + s(rec.lot) + '</td>' +
+    '<td>' + s(rec.section) + '</td>' +
+    '<td class="record-name">' + s(rec.famille) + '</td>' +
+    '<td>' + s(rec.nom) + '</td>' +
+    '<td>' + s(rec.prenom) + '</td>' +
+    '<td><select class="genre-select" onclick="event.stopPropagation()" onchange="allRecords[' + idx + '].genre=this.value">' +
+      '<option value="">-</option>' +
+      '<option value="M"' + (rec.genre==='M'?' selected':'') + '>M</option>' +
+      '<option value="F"' + (rec.genre==='F'?' selected':'') + '>F</option>' +
+    '</select></td>' +
+    '<td class="record-dates">' + s(rec.naissance_jour)   + '</td>' +
+    '<td class="record-dates">' + s(rec.naissance_mois)   + '</td>' +
+    '<td class="record-dates">' + s(rec.naissance_annee)  + '</td>' +
+    '<td class="record-dates">' + s(rec.deces_jour)        + '</td>' +
+    '<td class="record-dates">' + s(rec.deces_mois)        + '</td>' +
+    '<td class="record-dates">' + s(rec.deces_annee)       + '</td>' +
+    '<td>' + s(rec.epoux_de)    + '</td>' +
+    '<td>' + s(rec.type_pierre) + '</td>' +
+    '<td>' + s(rec.couleur)     + '</td>' +
+    '<td>' + s(rec.motif)       + '</td>' +
+    '<td>' + s(rec.inscription) + '</td>' +
+    '<td>' + s(rec.lat)         + '</td>' +
+    '<td>' + s(rec.lng)         + '</td>' +
+    '<td>' + s(rec.fichier)     + '</td>' +
+    '<td>' + s(rec.date_photo)  + '</td>';
+  return tr;
+}
+
+function appendRecords(persons, gps, filename) {
+  var tbody = document.getElementById('recordsBody');
+  var lot = filename.replace(/\.[^/.]+$/,'');
+  var sm  = filename.match(/[A-Za-z]/);
+  var sec = sm ? sm[0].toUpperCase() : '';
+  persons.forEach(function(p) {
+    var rec = {
+      lot:lot, section:sec,
+      famille:p.famille||'', nom:p.nom||'', prenom:p.prenom||'', genre:p.genre||'',
+      naissance_jour:p.naissance_jour||'', naissance_mois:p.naissance_mois||'', naissance_annee:p.naissance_annee||'',
+      deces_jour:p.deces_jour||'', deces_mois:p.deces_mois||'', deces_annee:p.deces_annee||'',
+      epoux_de:p.epoux_de||'', type_pierre:p.type_pierre||'', couleur:p.couleur||'',
+      motif:p.motif||'', inscription:p.inscription||'',
+      lat:gps.lat?gps.lat.toFixed(6):'', lng:gps.lng?gps.lng.toFixed(6):'',
+      fichier:filename, date_photo:gps.date||'',
+      photoSrc: currentPhotoSrc
+    };
+    var idx = allRecords.push(rec) - 1;
+    tbody.appendChild(makeRow(rec, idx));
+  });
+}
+
+function updateStats() {
+  document.getElementById('countPersons').textContent = allRecords.length;
+  document.getElementById('countPhotos').textContent  = photoCount;
+  document.getElementById('countTotal').textContent   = allRecords.length;
+}
+
+function toggleConforme(e, idx) {
+  e.stopPropagation();
+  var btn = e.currentTarget, wasOk = btn.classList.contains('ok');
+  btn.classList.toggle('ok',!wasOk); btn.classList.toggle('warn',wasOk);
+  btn.innerHTML = wasOk ? '&#x26A0;' : '&#x2713;';
+  allRecords[idx].conforme = wasOk ? 'warn' : 'ok';
+  var tr = btn.closest('tr');
+  if (tr) { wasOk ? tr.classList.add('has-warning') : tr.classList.remove('has-warning'); }
+}
+
+// ── SIDEPANEL (edit with photo) ────────────────────────────
+function openSidepanel(idx) {
+  editIndex = idx;
+  var rec = allRecords[idx];
+
+  // Load photo
+  var src = rec.photoSrc || currentPhotoSrc;
+  spScale = 1; spOffX = 0; spOffY = 0;
+  document.getElementById('spImg').src = src || '';
+  document.getElementById('spPhotoName').textContent = rec.fichier || '';
+  applySpTransform();
+
+  // Fill form
+  document.getElementById('spLot').value         = rec.lot || '';
+  document.getElementById('spSection').value     = rec.section || '';
+  document.getElementById('spFamille').value     = rec.famille || '';
+  document.getElementById('spNom').value         = rec.nom || '';
+  document.getElementById('spPrenom').value      = rec.prenom || '';
+  document.getElementById('spGenre').value       = rec.genre || '';
+  document.getElementById('spEpoux').value       = rec.epoux_de || '';
+  document.getElementById('spNaisJour').value    = rec.naissance_jour || '';
+  document.getElementById('spNaisMois').value    = rec.naissance_mois || '';
+  document.getElementById('spNaisAnnee').value   = rec.naissance_annee || '';
+  document.getElementById('spDecJour').value     = rec.deces_jour || '';
+  document.getElementById('spDecMois').value     = rec.deces_mois || '';
+  document.getElementById('spDecAnnee').value    = rec.deces_annee || '';
+  document.getElementById('spType').value        = rec.type_pierre || '';
+  document.getElementById('spCouleur').value     = rec.couleur || '';
+  document.getElementById('spMotif').value       = rec.motif || '';
+  document.getElementById('spMotifAutre').value  = rec.motif_autre || '';
+  document.getElementById('spMotifAutreWrap').style.display = rec.motif === 'Autre' ? '' : 'none';
+  document.getElementById('spInscription').value = rec.inscription || '';
+  refreshWarning('sp');
+
+  document.getElementById('spOverlay').classList.add('active');
+  document.getElementById('sidepanel').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeSidepanel() {
+  document.getElementById('spOverlay').classList.remove('active');
+  document.getElementById('sidepanel').classList.remove('active');
+  document.body.style.overflow = '';
+  editIndex = -1;
+}
+
+function saveSidepanel() {
+  if (editIndex < 0) return;
+  var rec = allRecords[editIndex];
+  rec.lot             = document.getElementById('spLot').value;
+  rec.section         = document.getElementById('spSection').value;
+  rec.famille         = document.getElementById('spFamille').value;
+  rec.nom             = document.getElementById('spNom').value;
+  rec.prenom          = document.getElementById('spPrenom').value;
+  rec.genre           = document.getElementById('spGenre').value;
+  rec.epoux_de        = document.getElementById('spEpoux').value;
+  rec.naissance_jour  = document.getElementById('spNaisJour').value;
+  rec.naissance_mois  = document.getElementById('spNaisMois').value;
+  rec.naissance_annee = document.getElementById('spNaisAnnee').value;
+  rec.deces_jour      = document.getElementById('spDecJour').value;
+  rec.deces_mois      = document.getElementById('spDecMois').value;
+  rec.deces_annee     = document.getElementById('spDecAnnee').value;
+  rec.type_pierre     = document.getElementById('spType').value;
+  rec.couleur         = document.getElementById('spCouleur').value;
+  rec.motif           = document.getElementById('spMotif').value;
+  rec.motif_autre     = document.getElementById('spMotifAutre').value;
+  rec.inscription     = document.getElementById('spInscription').value;
+  rec.conforme        = undefined; // re-evaluate
+
+  var tbody = document.getElementById('recordsBody');
+  var old = tbody.querySelector('tr[data-idx="' + editIndex + '"]');
+  if (old) tbody.replaceChild(makeRow(rec, editIndex), old);
+  closeSidepanel();
+}
+
+// ── STANDALONE MODAL (add new) ─────────────────────────────
+function openModalAdd() {
+  addEditIndex = -1;
+  var lot = currentFileName !== 'inconnu' ? currentFileName.replace(/\.[^/.]+$/,'') : '';
+  var sm  = currentFileName.match(/[A-Za-z]/);
+  var fam = allRecords.length > 0 ? allRecords[allRecords.length-1].famille : '';
+  document.getElementById('mLot').value     = lot;
+  document.getElementById('mSection').value = sm ? sm[0].toUpperCase() : '';
+  document.getElementById('mFamille').value = fam;
+  ['mNom','mPrenom','mEpoux','mNaisJour','mNaisMois','mNaisAnnee',
+   'mDecJour','mDecMois','mDecAnnee','mMotifAutre','mInscription'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('mGenre').value  = '';
+  document.getElementById('mType').value   = '';
+  document.getElementById('mCouleur').value= '';
+  document.getElementById('mMotif').value  = '';
+  document.getElementById('mMotifAutreWrap').style.display = 'none';
+  document.getElementById('mWarning').classList.remove('active');
+  document.getElementById('modalOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function saveModal() {
+  var rec = {
+    lot:             document.getElementById('mLot').value,
+    section:         document.getElementById('mSection').value,
+    famille:         document.getElementById('mFamille').value,
+    nom:             document.getElementById('mNom').value,
+    prenom:          document.getElementById('mPrenom').value,
+    genre:           document.getElementById('mGenre').value,
+    epoux_de:        document.getElementById('mEpoux').value,
+    naissance_jour:  document.getElementById('mNaisJour').value,
+    naissance_mois:  document.getElementById('mNaisMois').value,
+    naissance_annee: document.getElementById('mNaisAnnee').value,
+    deces_jour:      document.getElementById('mDecJour').value,
+    deces_mois:      document.getElementById('mDecMois').value,
+    deces_annee:     document.getElementById('mDecAnnee').value,
+    type_pierre:     document.getElementById('mType').value,
+    couleur:         document.getElementById('mCouleur').value,
+    motif:           document.getElementById('mMotif').value,
+    motif_autre:     document.getElementById('mMotifAutre').value,
+    inscription:     document.getElementById('mInscription').value,
+    lat:             currentGPS.lat ? currentGPS.lat.toFixed(6) : '',
+    lng:             currentGPS.lng ? currentGPS.lng.toFixed(6) : '',
+    fichier:         currentFileName !== 'inconnu' ? currentFileName : '',
+    date_photo:      currentGPS.date || '',
+    photoSrc:        currentPhotoSrc
+  };
+  var idx = allRecords.push(rec) - 1;
+  document.getElementById('recordsBody').appendChild(makeRow(rec, idx));
+  updateStats();
+  document.getElementById('resultsSection').classList.add('active');
+  closeModal();
+}
+
+// ── SIDEPANEL ZOOM ─────────────────────────────────────────
+function applySpTransform() {
+  document.getElementById('spImg').style.transform = 'translate(' + spOffX + 'px,' + spOffY + 'px) scale(' + spScale + ')';
+  document.getElementById('spZoomLabel').textContent = Math.round(spScale * 100) + '%';
+}
+function spZoom(d) { spScale = Math.min(10, Math.max(0.3, spScale + d)); applySpTransform(); }
+function spResetView() { spScale = 1; spOffX = 0; spOffY = 0; applySpTransform(); }
+
+// ── TIMER ──────────────────────────────────────────────────
+function startTimer() {
+  analysisSeconds = 0; clearInterval(analysisTimer);
+  var el = document.getElementById('processingTimer');
+  analysisTimer = setInterval(function() {
+    el.textContent = (++analysisSeconds) + 's';
+    if (analysisSeconds >= 60) {
+      clearInterval(analysisTimer);
+      if (abortController) { abortController.abort(); abortController = null; }
+      showProcessing(false); showError('Delai depasse (60s).');
+    }
+  }, 1000);
+}
+function cancelAnalysis() {
+  if (abortController) { abortController.abort(); abortController = null; }
+  clearInterval(analysisTimer); showProcessing(false); showError('Analyse annulee.');
+}
+
+// ── EXCEL ──────────────────────────────────────────────────
+function exportExcel() {
+  var rows = document.getElementById('recordsBody').querySelectorAll('tr');
+  var data = [];
+  rows.forEach(function(tr) {
+    var c = tr.querySelectorAll('td');
+    var cb = c[0] ? c[0].querySelector('.conforme-btn') : null;
+    data.push({
+      'Conforme':        cb ? (cb.classList.contains('ok') ? 'OK' : 'VERIF') : '',
+      'N Lot':           c[2]  ? c[2].textContent  : '',
+      'Section':         c[3]  ? c[3].textContent  : '',
+      'Famille':         c[4]  ? c[4].textContent  : '',
+      'Nom':             c[5]  ? c[5].textContent  : '',
+      'Prenom':          c[6]  ? c[6].textContent  : '',
+      'Genre':           c[7]  ? (c[7].querySelector('select') ? c[7].querySelector('select').value : '') : '',
+      'Nais Jour':       c[8]  ? c[8].textContent  : '',
+      'Nais Mois':       c[9]  ? c[9].textContent  : '',
+      'Nais Annee':      c[10] ? c[10].textContent : '',
+      'Dec Jour':        c[11] ? c[11].textContent : '',
+      'Dec Mois':        c[12] ? c[12].textContent : '',
+      'Dec Annee':       c[13] ? c[13].textContent : '',
+      'Epoux de':        c[14] ? c[14].textContent : '',
+      'Type Pierre':     c[15] ? c[15].textContent : '',
+      'Couleur':         c[16] ? c[16].textContent : '',
+      'Motif':           c[17] ? c[17].textContent : '',
+      'Inscription':     c[18] ? c[18].textContent : '',
+      'GPS Lat':         c[19] ? c[19].textContent : '',
+      'GPS Lng':         c[20] ? c[20].textContent : '',
+      'Fichier':         c[21] ? c[21].textContent : '',
+      'Date Photo':      c[22] ? c[22].textContent : ''
+    });
+  });
+
+  var ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:8},{wch:16},{wch:10},{wch:20},{wch:18},{wch:18},{wch:8},
+    {wch:10},{wch:10},{wch:14},{wch:10},{wch:10},{wch:14},
+    {wch:22},{wch:14},{wch:12},{wch:18},{wch:30},{wch:14},{wch:14},{wch:22},{wch:20}];
+  ws['!autofilter'] = { ref: ws['!ref'] };
+
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  var R, C, addr;
+  for (C = range.s.c; C <= range.e.c; C++) {
+    addr = XLSX.utils.encode_cell({r:0,c:C});
+    if (ws[addr]) ws[addr].s = { fill:{fgColor:{rgb:'2A2420'}}, font:{bold:true,color:{rgb:'C9A96E'},sz:11}, alignment:{horizontal:'center',vertical:'center'} };
+  }
+  for (R = 1; R <= range.e.r; R++) {
+    var bg = R%2===0 ? 'F5F0E8' : 'FFFFFF';
+    for (C = range.s.c; C <= range.e.c; C++) {
+      addr = XLSX.utils.encode_cell({r:R,c:C});
+      if (!ws[addr]) ws[addr] = {t:'s',v:''};
+      ws[addr].s = { fill:{fgColor:{rgb:bg}}, font:{sz:10}, alignment:{vertical:'center'} };
+    }
+  }
+
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Recensement');
+  XLSX.writeFile(wb, 'pierres-tombales-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+// ── IMAGE COMPRESSION ──────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise(function(res, rej) {
+    var MAX = 4.5*1024*1024;
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function() {
+      URL.revokeObjectURL(url);
+      var canvas = document.createElement('canvas');
+      var w = img.width, h = img.height;
+      if (w>4000||h>4000) { var r=Math.min(4000/w,4000/h); w=Math.round(w*r); h=Math.round(h*r); }
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      var q=0.92, du;
+      do { du=canvas.toDataURL('image/jpeg',q); q-=0.05; } while(du.length*0.75>MAX && q>0.3);
+      res(du.split(',')[1]);
+    };
+    img.onerror = function() { rej(new Error('Impossible de lire image')); };
+    img.src = url;
+  });
+}
+
+// ── HELPERS ────────────────────────────────────────────────
+function showProcessing(show) {
+  document.getElementById('processingOverlay').classList.toggle('active', show);
+  if (show) document.getElementById('processingText').textContent = 'Lecture des inscriptions…';
+}
+function showError(msg) {
+  var el = document.getElementById('errorMsg');
+  el.textContent = msg; el.classList.toggle('active', !!msg);
+}
+function clearAll() {
+  if (!confirm('Effacer toutes les donnees de la session ?')) return;
+  allRecords=[]; photoCount=0; currentPhotoSrc='';
+  document.getElementById('recordsBody').innerHTML='';
+  document.getElementById('resultsSection').classList.remove('active');
+  updateStats();
+}
+</script>
+</body>
+</html>
