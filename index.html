@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pierres Tombales v16</title>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:#1a1510; --surface:#2a2420; --surface2:#332e28; --surface3:#3a3428;
+    --gold:#C9A96E; --gold2:#e8c98a; --text:#f0e8d8; --text2:#b0a090;
+    --green:#4a8c5c; --green-bg:#c6efce; --green-txt:#276221;
+    --yellow-bg:#ffeb9c; --yellow-txt:#9c5700;
+    --red:#c0392b; --border:#4a4035; --radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;}
+
+  /* HEADER */
+  header{background:var(--surface);border-bottom:2px solid var(--gold);padding:14px 20px;
+    display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;}
+  header h1{color:var(--gold);font-size:1.2rem;font-weight:700;letter-spacing:1px;}
+  header p{color:var(--text2);font-size:0.8rem;}
+  .hright{margin-left:auto;display:flex;gap:8px;align-items:center;}
+
+  /* BOUTONS */
+  .btn{padding:7px 14px;border:none;border-radius:var(--radius);font-size:0.85rem;font-weight:600;
+    cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:5px;}
+  .btn-gold{background:var(--gold);color:#1a1510;}
+  .btn-gold:hover{background:var(--gold2);}
+  .btn-outline{background:transparent;border:1px solid var(--gold);color:var(--gold);}
+  .btn-outline:hover{background:var(--surface2);}
+  .btn-red{background:var(--red);color:#fff;}
+  .btn-red:hover{opacity:.85;}
+  .btn-green{background:var(--green);color:#fff;}
+  .btn-green:hover{opacity:.85;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-sm{padding:4px 10px;font-size:0.78rem;}
+
+  /* MAIN */
+  main{padding:16px 20px;}
+
+  /* CLÉ API */
+  .api-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:10px 16px;display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .api-bar label{color:var(--gold);font-size:0.82rem;font-weight:600;white-space:nowrap;}
+  .api-bar input{background:var(--surface2);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:6px 12px;font-size:0.85rem;flex:1;min-width:200px;}
+  .api-bar input:focus{outline:none;border-color:var(--gold);}
+  .api-status{font-size:0.78rem;color:var(--text2);}
+
+  /* UPLOAD */
+  .upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;
+    text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);margin-bottom:14px;}
+  .upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:var(--surface3);}
+  .upload-icon{font-size:2rem;margin-bottom:6px;}
+  .upload-zone p{color:var(--text2);font-size:0.85rem;}
+  .upload-zone .sub{font-size:0.75rem;margin-top:4px;color:#806050;}
+
+  /* PROGRESS */
+  .progress-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:12px 16px;margin-bottom:14px;display:none;}
+  .progress-bar.show{display:block;}
+  .prog-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .prog-label{color:var(--gold);font-size:0.85rem;flex:1;}
+  .prog-track{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;}
+  .prog-fill{background:var(--gold);height:100%;width:0;transition:width .3s;border-radius:4px;}
+  .prog-photo{display:flex;align-items:center;gap:10px;}
+  .prog-thumb{width:50px;height:50px;object-fit:cover;border-radius:4px;border:1px solid var(--border);}
+  .prog-detail{font-size:0.8rem;color:var(--text2);}
+
+  /* STATS */
+  .stats{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:10px 16px;min-width:120px;}
+  .stat-card .val{font-size:1.5rem;font-weight:700;color:var(--gold);}
+  .stat-card .lbl{font-size:0.75rem;color:var(--text2);margin-top:2px;}
+
+  /* TOOLBAR */
+  .toolbar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+  .toolbar input,.toolbar select{background:var(--surface2);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.83rem;}
+  .toolbar input{width:200px;}
+  .toolbar input::placeholder{color:var(--text2);}
+
+  /* TABLE */
+  .table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    overflow:auto;max-height:55vh;}
+  table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+  thead th{background:var(--surface);color:var(--gold);padding:9px 8px;text-align:left;
+    white-space:nowrap;position:sticky;top:0;border-bottom:2px solid var(--gold);
+    font-size:0.75rem;letter-spacing:.5px;}
+  tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;}
+  tbody tr:hover{background:var(--surface2);}
+  tbody tr.selected{background:#3a3020;}
+  tbody tr.has-warning{border-left:3px solid #c97000;}
+  tbody td{padding:7px 8px;white-space:nowrap;color:var(--text);}
+  tbody td.id-col{font-weight:600;color:var(--gold2);font-family:monospace;font-size:0.78rem;}
+  .badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:0.72rem;font-weight:700;}
+  .badge-ok{background:var(--green-bg);color:var(--green-txt);}
+  .badge-verif{background:var(--yellow-bg);color:var(--yellow-txt);}
+  .badge-warn{background:#3a1a00;color:#ffaa44;}
+  .conf-btn{background:none;border:none;cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:4px;}
+  .conf-btn.ok{color:#4a8c5c;}
+  .conf-btn.warn{color:#c97000;}
+
+  /* LIGHTBOX */
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s;}
+  .lightbox.open{opacity:1;pointer-events:all;}
+  .lb-img{max-width:90vw;max-height:90vh;object-fit:contain;
+    transform-origin:center;cursor:grab;user-select:none;border-radius:4px;}
+  .lb-img:active{cursor:grabbing;}
+  .lb-controls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+    display:flex;gap:8px;background:rgba(0,0,0,.6);padding:8px 14px;border-radius:20px;}
+  .lb-controls button{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;
+    width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:1rem;
+    display:flex;align-items:center;justify-content:center;}
+  .lb-controls button:hover{background:rgba(255,255,255,.15);}
+  .lb-close{position:absolute;top:16px;right:20px;background:none;border:none;
+    color:#fff;font-size:1.8rem;cursor:pointer;line-height:1;}
+
+  /* MODAL */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .2s;}
+  .overlay.open{opacity:1;pointer-events:all;}
+  .modal{background:var(--surface);border:1px solid var(--gold);border-radius:12px;
+    width:95%;max-width:760px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;
+    transform:translateY(20px);transition:transform .2s;}
+  .overlay.open .modal{transform:translateY(0);}
+  .modal h2{color:var(--gold);font-size:1rem;margin-bottom:18px;
+    border-bottom:1px solid var(--border);padding-bottom:8px;}
+  .modal-close{position:absolute;top:14px;right:14px;background:none;border:none;
+    color:var(--text2);font-size:1.3rem;cursor:pointer;}
+  .modal-close:hover{color:var(--text);}
+
+  /* FORM */
+  .fg{display:flex;flex-direction:column;gap:4px;}
+  .fg label{font-size:0.75rem;color:var(--gold);font-weight:600;letter-spacing:.4px;}
+  .fg input,.fg select,.fg textarea{background:var(--surface2);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;padding:7px 10px;font-size:0.85rem;}
+  .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--gold);}
+  .fg input[readonly]{opacity:.55;cursor:not-allowed;}
+  .fg textarea{resize:vertical;min-height:60px;}
+  .fg select option{background:var(--surface2);}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .form-grid.g3{grid-template-columns:1fr 1fr 1fr;}
+  .full{grid-column:1/-1;}
+  .sec-title{grid-column:1/-1;color:var(--text2);font-size:0.72rem;text-transform:uppercase;
+    letter-spacing:1px;border-bottom:1px solid var(--border);padding-bottom:3px;margin-top:4px;}
+  .date-row{display:grid;grid-template-columns:1fr 1fr 2fr;gap:6px;}
+  .warn-box{grid-column:1/-1;background:#3a2000;border:1px solid var(--yellow-txt);
+    border-radius:6px;padding:7px 10px;color:#ffcc66;font-size:0.8rem;display:none;}
+  .warn-box.show{display:block;}
+  .mfooter{display:flex;gap:8px;justify-content:flex-end;
+    margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+
+  /* TOAST */
+  .toast{position:fixed;bottom:20px;right:20px;z-index:999;
+    background:var(--surface2);border:1px solid var(--gold);color:var(--text);
+    padding:10px 18px;border-radius:var(--radius);font-size:0.85rem;
+    transform:translateY(60px);opacity:0;transition:all .3s;pointer-events:none;}
+  .toast.show{transform:translateY(0);opacity:1;}
+
+
+  /* SIDEPANEL */
+  .sidepanel{position:fixed;top:0;right:-100%;width:100%;max-width:1100px;height:100vh;
+    background:var(--surface);z-index:300;border-left:2px solid var(--gold);
+    transition:right .3s ease;display:flex;flex-direction:column;}
+  .sidepanel.open{right:0;}
+  .sp-header{padding:12px 18px;background:var(--surface);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:10px;}
+  .sp-header h3{color:var(--gold);font-size:1rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sp-body{display:flex;flex:1;overflow:hidden;}
+  .sp-photo{flex:1;background:#111;display:flex;align-items:center;justify-content:center;
+    overflow:hidden;position:relative;}
+  .sp-photo img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center;
+    cursor:grab;user-select:none;}
+  .sp-photo img:active{cursor:grabbing;}
+  .sp-no-photo{color:var(--text2);font-size:.9rem;text-align:center;}
+  .sp-zoom{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
+    display:flex;gap:6px;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:20px;}
+  .sp-zoom button{background:none;border:1px solid rgba(255,255,255,.3);color:#fff;
+    width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:.95rem;
+    display:flex;align-items:center;justify-content:center;}
+  .sp-zoom button:hover{background:rgba(255,255,255,.1);}
+  .sp-form{width:420px;overflow-y:auto;padding:16px;border-left:1px solid var(--border);}
+  @media(max-width:700px){
+    .sidepanel{max-width:100%;}
+    .sp-body{flex-direction:column;}
+    .sp-form{width:100%;border-left:none;border-top:1px solid var(--border);}
+  }
+
+  @media(max-width:600px){
+    .form-grid{grid-template-columns:1fr;}
+    .form-grid.g3{grid-template-columns:1fr 1fr;}
+    header h1{font-size:1rem;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>⚰ Pierres Tombales v16</h1>
+    <p>Analyse automatique par intelligence artificielle</p>
+  </div>
+  <div class="hright">
+    <button class="btn btn-outline" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn btn-gold" onclick="exportExcel()">⬇ Export Excel</button>
+    <button class="btn btn-outline" onclick="openModalAdd()">+ Manuel</button>
+    <button class="btn btn-red btn-sm" onclick="toutEffacer()">🗑 Vider</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- CLÉ API -->
+  <div class="api-bar">
+    <label>🔑 Clé API Anthropic</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-api03-..." oninput="saveApiKey()">
+    <span class="api-status" id="apiStatus">Non configurée</span>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="uploadZone"
+    onclick="document.getElementById('fileInput').click()"
+    ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFiles(event)">
+    <div class="upload-icon">📷</div>
+    <p>Cliquez ou glissez vos photos ici</p>
+    <p class="sub">JPG · PNG · HEIC — une ou plusieurs photos à la fois</p>
+  </div>
+  <input type="file" id="fileInput" accept="image/*,.heic,.heif" multiple style="display:none"
+    onchange="handleFiles(event.target.files)">
+
+  <!-- PROGRESS -->
+  <div class="progress-bar" id="progressBar">
+    <div class="prog-top">
+      <span class="prog-label" id="progLabel">Analyse en cours...</span>
+      <button class="btn btn-red btn-sm" onclick="annulerAnalyse()">✕ Annuler</button>
+    </div>
+    <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+    <div class="prog-photo" style="margin-top:8px">
+      <img class="prog-thumb" id="progThumb" src="" alt="">
+      <span class="prog-detail" id="progDetail"></span>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat-card"><div class="val" id="statTotal">0</div><div class="lbl">Personnes</div></div>
+    <div class="stat-card"><div class="val" id="statPhotos">0</div><div class="lbl">Photos</div></div>
+    <div class="stat-card"><div class="val" id="statOK">0</div><div class="lbl">Conformes</div></div>
+    <div class="stat-card"><div class="val" id="statVerif">0</div><div class="lbl">À vérifier</div></div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="🔍 Rechercher..." oninput="filtrer()">
+    <select id="filterConf" onchange="filtrer()">
+      <option value="">Tous — Conforme</option>
+      <option value="OK">OK</option>
+      <option value="VERIF">VERIF</option>
+    </select>
+    <select id="filterSection" onchange="filtrer()">
+      <option value="">Toutes — Sections</option>
+    </select>
+    <span style="color:var(--text2);font-size:0.8rem;margin-left:auto" id="countLabel"></span>
+  </div>
+
+  <!-- TABLEAU -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>✓</th>
+          <th>ID</th>
+          <th>Lot</th>
+          <th>Section</th>
+          <th>Famille</th>
+          <th>Nom</th>
+          <th>Prénom</th>
+          <th>Genre</th>
+          <th>N.Jour</th><th>N.Mois</th><th>N.Année</th>
+          <th>D.Jour</th><th>D.Mois</th><th>D.Année</th>
+          <th>Époux de</th>
+          <th>Type Pierre</th>
+          <th>Couleur</th>
+          <th>Motif</th>
+          <th>Inscription</th>
+          <th>GPS Lat</th><th>GPS Lng</th>
+          <th>Fichier</th>
+          <th>Date Photo</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</main>
+
+
+<!-- SIDEPANEL photo + formulaire -->
+<div class="sidepanel" id="sidepanel">
+  <div class="sp-header">
+    <button class="btn btn-outline" style="padding:5px 10px" onclick="spNaviguer(-1)">◄</button>
+    <h3 id="spTitle">Fiche</h3>
+    <button class="btn btn-outline" style="padding:5px 10px" onclick="spNaviguer(1)">►</button>
+    <button class="btn btn-red btn-sm" onclick="spSupprimer()" style="margin-left:6px">🗑</button>
+    <button class="modal-close" style="position:static;margin-left:6px" onclick="closeSidepanel()">✕</button>
+  </div>
+  <div class="sp-body">
+    <!-- Photo -->
+    <div class="sp-photo" id="spPhotoPane">
+      <span class="sp-no-photo" id="spNoPhoto">Aucune photo</span>
+      <img id="spImg" style="display:none" alt="">
+      <div class="sp-zoom" id="spZoom" style="display:none">
+        <button onclick="spZoom(1.2)">＋</button>
+        <button onclick="spZoom(0.8)">－</button>
+        <button onclick="spResetZoom()">⟳</button>
+      </div>
+    </div>
+    <!-- Formulaire -->
+    <div class="sp-form" id="spFormPane"></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <img class="lb-img" id="lbImg" src="" alt="">
+  <div class="lb-controls">
+    <button onclick="lbZoom(1.25);event.stopPropagation()">＋</button>
+    <button onclick="lbZoom(0.8);event.stopPropagation()">－</button>
+    <button onclick="lbReset();event.stopPropagation()">⟳</button>
+  </div>
+</div>
+
+<!-- MODAL FICHE -->
+<div class="overlay" id="overlay" onclick="closeModalOutside(event)">
+<div class="modal">
+  <button class="modal-close" onclick="closeModal()">✕</button>
+  <h2 id="modalTitle">Nouvelle fiche</h2>
+  <div class="form-grid">
+    <div class="fg"><label>ID</label><input type="text" id="mID" readonly></div>
+    <div class="fg"><label>Conforme</label>
+      <select id="mConforme">
+        <option value="">—</option><option value="OK">OK</option><option value="VERIF">VERIF</option>
+      </select>
+    </div>
+    <div class="fg"><label>N° Lot</label><input type="text" id="mLot" list="listLots"><datalist id="listLots"></datalist></div>
+    <div class="fg"><label>Section</label><input type="text" id="mSection" list="listSections"><datalist id="listSections"></datalist></div>
+
+    <div class="sec-title">Identité</div>
+    <div class="fg full"><label>Famille</label><input type="text" id="mFamille"></div>
+    <div class="fg"><label>Nom</label><input type="text" id="mNom"></div>
+    <div class="fg"><label>Prénom</label><input type="text" id="mPrenom"></div>
+    <div class="fg"><label>Genre</label>
+      <select id="mGenre"><option value="">—</option><option value="M">M</option><option value="F">F</option></select>
+    </div>
+    <div class="fg"><label>Époux / Épouse de</label><input type="text" id="mEpoux"></div>
+
+    <div class="sec-title">Dates</div>
+    <div class="fg"><label>Naissance — Jour / Mois / Année</label>
+      <div class="date-row">
+        <select id="mNaisJour"><option value="">JJ</option></select>
+        <select id="mNaisMois"><option value="">MM</option></select>
+        <select id="mNaisAnnee"><option value="">AAAA</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Décès — Jour / Mois / Année</label>
+      <div class="date-row">
+        <select id="mDecJour"><option value="">JJ</option></select>
+        <select id="mDecMois"><option value="">MM</option></select>
+        <select id="mDecAnnee"><option value="">AAAA</option></select>
+      </div>
+    </div>
+    <div class="warn-box" id="warnBox"></div>
+
+    <div class="sec-title">Pierre</div>
+    <div class="fg"><label>Type Pierre</label>
+      <select id="mType"><option value="">—</option>
+        <option>Granit</option><option>Marbre</option><option>Calcaire</option>
+        <option>Beton</option><option>Bois</option><option>Metal</option>
+      </select>
+    </div>
+    <div class="fg"><label>Couleur</label>
+      <select id="mCouleur"><option value="">—</option>
+        <option>Noir</option><option>Gris</option><option>Rose</option>
+        <option>Rouge</option><option>Blanc</option><option>Beige</option><option>Brun</option>
+      </select>
+    </div>
+    <div class="fg"><label>Motif</label>
+      <select id="mMotif" onchange="toggleMotifAutre()"><option value="">—</option>
+        <option>Fleur</option><option>Oiseau</option><option>Croix</option>
+        <option>Feuilles</option><option>Colombe</option><option>Etoile</option>
+        <option>Ancre</option><option>Anneaux</option><option>Autre</option>
+      </select>
+    </div>
+    <div class="fg" id="motifAutreWrap" style="display:none"><label>Motif (préciser)</label><input type="text" id="mMotifAutre"></div>
+    <div class="fg full"><label>Inscription</label><textarea id="mInscription"></textarea></div>
+
+    <div class="sec-title">Localisation</div>
+    <div class="fg"><label>GPS Latitude</label><input type="text" id="mLat"></div>
+    <div class="fg"><label>GPS Longitude</label><input type="text" id="mLng"></div>
+    <div class="fg"><label>Fichier</label><input type="text" id="mFichier" readonly></div>
+    <div class="fg"><label>Date Photo</label><input type="text" id="mDatePhoto" readonly></div>
+
+    <div class="sec-title">Photo</div>
+    <div class="fg full">
+      <div id="modalPhotoWrap" style="display:none;cursor:pointer" onclick="openLightboxSrc(currentModalPhoto)">
+        <img id="modalPhotoThumb" src="" style="max-width:100%;max-height:180px;object-fit:contain;border-radius:6px;border:1px solid var(--border)">
+        <p style="color:var(--text2);font-size:0.75rem;margin-top:4px">🔍 Cliquer pour agrandir</p>
+      </div>
+    </div>
+  </div>
+  <div class="mfooter">
+    <button class="btn btn-red btn-sm" id="btnSupprimer" onclick="supprimerFiche()" style="display:none;margin-right:auto">🗑 Supprimer</button>
+    <button class="btn btn-outline" onclick="closeModal()">Annuler</button>
+    <button class="btn btn-gold" onclick="sauvegarderFiche()">💾 Enregistrer</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+// ÉTAT
+// ════════════════════════════════════════════
+var allRecords = [];
+var photoCount = 0;
+var editIndex  = -1;
+var abortCtrl  = null;
+var lbScale = 1, lbX = 0, lbY = 0;
+var lbDrag = false, lbDX = 0, lbDY = 0;
+var currentModalPhoto = null;
+
+// ── CLÉS DONNÉES ──
+var STORE_KEY = 'pierresv16';
+var API_KEY   = 'pierresv16_apikey';
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  chargerDonnees();
+  var savedKey = sessionStorage.getItem(API_KEY) || '';
+  if (savedKey) {
+    document.getElementById('apiKey').value = savedKey;
+    document.getElementById('apiStatus').textContent = '✅ Clé chargée';
+    document.getElementById('apiStatus').style.color = '#4a8c5c';
+  }
+  remplirDates();
+  remplirFiltres();
+  renderTableau();
+  updateStats();
+});
+
+function saveApiKey() {
+  var k = document.getElementById('apiKey').value.trim();
+  if (k) {
+    sessionStorage.setItem(API_KEY, k);
+    document.getElementById('apiStatus').textContent = '✅ Clé enregistrée';
+    document.getElementById('apiStatus').style.color = '#4a8c5c';
+  } else {
+    document.getElementById('apiStatus').textContent = 'Non configurée';
+    document.getElementById('apiStatus').style.color = '';
+  }
+}
+
+// ════════════════════════════════════════════
+// GESTION FICHIERS
+// ════════════════════════════════════════════
+function dragOver(e)  { e.preventDefault(); document.getElementById('uploadZone').classList.add('drag'); }
+function dragLeave()  { document.getElementById('uploadZone').classList.remove('drag'); }
+function dropFiles(e) { e.preventDefault(); dragLeave(); handleFiles(e.dataTransfer.files); }
+
+async function handleFiles(files) {
+  var apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { showToast('❌ Entrez votre clé API Anthropic'); return; }
+  if (!files || !files.length) return;
+
+  abortCtrl = new AbortController();
+  var bar   = document.getElementById('progressBar');
+  var fill  = document.getElementById('progFill');
+  bar.classList.add('show');
+
+  for (var i = 0; i < files.length; i++) {
+    if (abortCtrl.signal.aborted) break;
+    var file = files[i];
+    var pct  = Math.round((i / files.length) * 100);
+    document.getElementById('progLabel').textContent = 'Photo ' + (i+1) + ' / ' + files.length + ' — ' + file.name;
+    document.getElementById('progDetail').textContent = 'Préparation...';
+    fill.style.width = pct + '%';
+
+    try {
+      // HEIC → JPEG
+      var n = file.name.toLowerCase();
+      if (file.type === 'image/heic' || file.type === 'image/heif' || n.endsWith('.heic') || n.endsWith('.heif')) {
+        document.getElementById('progDetail').textContent = 'Conversion HEIC...';
+        var blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.90 });
+        file = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+      }
+
+      // Compression + GPS
+      document.getElementById('progDetail').textContent = 'Compression...';
+      var gps     = await lireGPS(file);
+      var dataUrl = await compresser(file);
+
+      // Aperçu
+      var thumb = document.getElementById('progThumb');
+      thumb.src = dataUrl;
+
+      // Analyser
+      document.getElementById('progDetail').textContent = 'Analyse IA...';
+      var persons = await analyserIA(dataUrl, apiKey, abortCtrl.signal);
+
+      // Ajouter au tableau
+      var lot = file.name.replace(/\.[^/.]+$/, '');
+      var secMatch = file.name.match(/[A-Za-z]/);
+      var sec = secMatch ? secMatch[0].toUpperCase() : '';
+
+      if (persons.length === 0) {
+        // Ajouter une ligne vide pour cette photo
+        ajouterLigne({ lot: lot, section: sec, fichier: file.name,
+          lat: gps.lat, lng: gps.lng, date_photo: gps.date, photoSrc: dataUrl });
+      } else {
+        persons.forEach(function(p) {
+          ajouterLigne({
+            lot:            lot,
+            section:        sec,
+            famille:        p.famille        || '',
+            nom:            p.nom            || '',
+            prenom:         p.prenom         || '',
+            genre:          p.genre          || '',
+            naisJour:       fmt2(p.naissance_jour),
+            naisMois:       fmt2(p.naissance_mois),
+            naisAnnee:      p.naissance_annee ? String(p.naissance_annee) : '',
+            decJour:        fmt2(p.deces_jour),
+            decMois:        fmt2(p.deces_mois),
+            decAnnee:       p.deces_annee    ? String(p.deces_annee) : '',
+            epoux:          p.epoux_de       || '',
+            type:           p.type_pierre    || '',
+            couleur:        p.couleur        || '',
+            motif:          p.motif          || '',
+            inscription:    p.inscription    || '',
+            lat:            gps.lat ? gps.lat.toFixed(6) : '',
+            lng:            gps.lng ? gps.lng.toFixed(6) : '',
+            fichier:        file.name,
+            date_photo:     gps.date         || '',
+            photoSrc:       dataUrl,
+            conforme:       ''
+          });
+        });
+      }
+      photoCount++;
+      sauvegarder();
+      renderTableau();
+      updateStats();
+      remplirFiltres();
+      showToast('✅ ' + file.name + ' — ' + persons.length + ' personne(s)');
+    } catch(err) {
+      if (err.name === 'AbortError') break;
+      showToast('❌ ' + file.name + ' : ' + err.message);
+    }
+  }
+
+  fill.style.width = '100%';
+  setTimeout(function() { bar.classList.remove('show'); fill.style.width = '0'; }, 1200);
+  abortCtrl = null;
+}
+
+function annulerAnalyse() {
+  if (abortCtrl) { abortCtrl.abort(); showToast('⛔ Analyse annulée'); }
+}
+
+function fmt2(v) {
+  if (!v) return '';
+  return String(v).padStart(2, '0');
+}
+
+// ════════════════════════════════════════════
+// COMPRESSION & GPS
+// ════════════════════════════════════════════
+function compresser(file) {
+  return new Promise(function(res, rej) {
+    var MAX = 4.5 * 1024 * 1024;
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function() {
+      URL.revokeObjectURL(url);
+      var c = document.createElement('canvas');
+      var w = img.width, h = img.height;
+      if (w > 4000 || h > 4000) { var r = Math.min(4000/w, 4000/h); w = Math.round(w*r); h = Math.round(h*r); }
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      var q = 0.92, du;
+      do { du = c.toDataURL('image/jpeg', q); q -= 0.05; } while (du.length * 0.75 > MAX && q > 0.3);
+      res(du);
+    };
+    img.onerror = function() { rej(new Error('Lecture impossible')); };
+    img.src = url;
+  });
+}
+
+function lireGPS(file) {
+  return new Promise(function(res) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var buf  = e.target.result;
+        var view = new DataView(buf);
+        var gps  = { lat: null, lng: null, date: '' };
+        // Chercher APP1 EXIF
+        var i = 2;
+        while (i < view.byteLength - 2) {
+          if (view.getUint8(i) !== 0xFF) break;
+          var marker = view.getUint8(i+1);
+          var len    = view.getUint16(i+2);
+          if (marker === 0xE1) {
+            var exifStr = String.fromCharCode.apply(null, new Uint8Array(buf, i+4, 6));
+            if (exifStr.startsWith('Exif')) {
+              var tiff = i + 10;
+              var le   = view.getUint16(tiff) === 0x4949;
+              var ifd0 = tiff + view.getUint32(tiff+4, le);
+              var nTags = view.getUint16(ifd0, le);
+              var gpsOff = null;
+              for (var t = 0; t < nTags; t++) {
+                var tag = view.getUint16(ifd0 + 2 + t*12, le);
+                if (tag === 0x8825) gpsOff = tiff + view.getUint32(ifd0 + 2 + t*12 + 8, le);
+                if (tag === 0x9003 || tag === 0x0132) {
+                  var dateOff = view.getUint32(ifd0 + 2 + t*12 + 8, le);
+                  gps.date = '';
+                  for (var d = 0; d < 10; d++) gps.date += String.fromCharCode(view.getUint8(tiff + dateOff + d));
+                  gps.date = gps.date.replace(/:/g, '-').substring(0,10);
+                }
+              }
+              if (gpsOff) {
+                var gn = view.getUint16(gpsOff, le);
+                var latRef = '', lngRef = '', latV = null, lngV = null;
+                for (var g = 0; g < gn; g++) {
+                  var gtag = view.getUint16(gpsOff + 2 + g*12, le);
+                  var gtype = view.getUint16(gpsOff + 2 + g*12 + 2, le);
+                  var gcnt  = view.getUint32(gpsOff + 2 + g*12 + 4, le);
+                  var gvoff = gpsOff + 2 + g*12 + 8;
+                  if (gtag === 1) latRef = String.fromCharCode(view.getUint8(gvoff));
+                  if (gtag === 3) lngRef = String.fromCharCode(view.getUint8(gvoff));
+                  if (gtag === 2 || gtag === 4) {
+                    var rOff = tiff + view.getUint32(gvoff, le);
+                    var deg = view.getUint32(rOff, le) / view.getUint32(rOff+4, le);
+                    var min = view.getUint32(rOff+8, le) / view.getUint32(rOff+12, le);
+                    var sec = view.getUint32(rOff+16, le) / view.getUint32(rOff+20, le);
+                    var val = deg + min/60 + sec/3600;
+                    if (gtag === 2) latV = val;
+                    else lngV = val;
+                  }
+                }
+                if (latV !== null) gps.lat = latRef === 'S' ? -latV : latV;
+                if (lngV !== null) gps.lng = lngRef === 'W' ? -lngV : lngV;
+              }
+            }
+          }
+          i += 2 + len;
+        }
+        res(gps);
+      } catch(e) { res({ lat: null, lng: null, date: '' }); }
+    };
+    reader.onerror = function() { res({ lat: null, lng: null, date: '' }); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ════════════════════════════════════════════
+// ANALYSE IA
+// ════════════════════════════════════════════
+async function analyserIA(dataUrl, apiKey, signal) {
+  var prompt = [
+    'Tu es un expert en lecture d inscriptions funéraires. Analyse cette photo de pierre tombale.',
+    '',
+    'RÈGLES :',
+    '1. FAMILLE = nom principal EN GROS sur la pierre. Identique pour toutes les personnes.',
+    '2. NOM = nom de famille individuel de chaque personne.',
+    '3. DATES : trois champs distincts jour / mois (1-12) / annee. Aucune date avant 1799.',
+    '4. DATE UNIQUE = toujours NAISSANCE (jamais décès).',
+    '5. INSCRIPTION = phrases et épitaphes uniquement, pas les noms ni dates.',
+    '6. EPOUX_DE = nom du conjoint si mentionné.',
+    '7. GENRE = M ou F selon le prénom, null si incertain.',
+    '8. TYPE_PIERRE = Granit, Marbre, Calcaire, Beton, Bois ou Metal.',
+    '9. COULEUR = couleur principale : Noir, Gris, Rose, Rouge, Blanc, Beige ou Brun.',
+    '10. MOTIF = Fleur, Oiseau, Croix, Feuilles, Colombe, Etoile, Ancre, Anneaux, Autre ou null.',
+    '',
+    'Champs requis pour chaque personne :',
+    'famille, nom, prenom, genre,',
+    'naissance_jour, naissance_mois, naissance_annee,',
+    'deces_jour, deces_mois, deces_annee,',
+    'epoux_de, type_pierre, couleur, motif, inscription',
+    '',
+    'Réponds UNIQUEMENT avec un tableau JSON valide. Aucun texte avant ou après. Aucun backtick.',
+    'Utilise null si une valeur est absente. Retourne [] si aucune personne visible.'
+  ].join('\n');
+
+  var b64  = dataUrl.split(',')[1];
+  var mime = 'image/jpeg';
+
+  var resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    signal: signal,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
+        { type: 'text', text: prompt }
+      ]}]
+    })
+  });
+
+  if (!resp.ok) {
+    var err = await resp.json();
+    throw new Error(err.error ? err.error.message : resp.statusText);
+  }
+  var data = await resp.json();
+  if (!data.content || !data.content[0]) throw new Error('Réponse API vide');
+  var raw   = data.content.map(function(b) { return b.text || ''; }).join('').trim();
+  var clean = raw.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/```\s*$/i,'').trim();
+  return JSON.parse(clean);
+}
+
+// ════════════════════════════════════════════
+// DONNÉES
+// ════════════════════════════════════════════
+function genID() {
+  var max = 0;
+  allRecords.forEach(function(r) {
+    if (r.id && r.id.startsWith('PT-')) {
+      var n = parseInt(r.id.replace('PT-',''));
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return 'PT-' + String(max+1).padStart(5,'0');
+}
+
+function ajouterLigne(data) {
+  var rec = {
+    id:         genID(),
+    conforme:   data.conforme || '',
+    lot:        data.lot       || '',
+    section:    data.section   || '',
+    famille:    data.famille   || '',
+    nom:        data.nom       || '',
+    prenom:     data.prenom    || '',
+    genre:      data.genre     || '',
+    naisJour:   data.naisJour  || '',
+    naisMois:   data.naisMois  || '',
+    naisAnnee:  data.naisAnnee || '',
+    decJour:    data.decJour   || '',
+    decMois:    data.decMois   || '',
+    decAnnee:   data.decAnnee  || '',
+    epoux:      data.epoux     || '',
+    type:       data.type      || '',
+    couleur:    data.couleur   || '',
+    motif:      data.motif     || '',
+    inscription:data.inscription || '',
+    lat:        data.lat       || '',
+    lng:        data.lng       || '',
+    fichier:    data.fichier   || '',
+    date_photo: data.date_photo|| '',
+    photoSrc:   data.photoSrc  || null
+  };
+  // Validation auto
+  var warns = valider(rec);
+  if (rec.conforme === '') rec.conforme = warns.length ? 'VERIF' : 'OK';
+  allRecords.push(rec);
+  return rec;
+}
+
+function valider(r) {
+  var w = [];
+  var ny = parseInt(r.naisAnnee), dy = parseInt(r.decAnnee);
+  if (ny && ny < 1799) w.push('Naissance avant 1799 (' + ny + ')');
+  if (dy && dy < 1799) w.push('Décès avant 1799 (' + dy + ')');
+  if (ny && dy && (dy - ny) > 120) w.push('Âge > 120 ans (' + (dy-ny) + ')');
+  if (ny && dy && dy < ny) w.push('Décès avant naissance');
+  return w;
+}
+
+function sauvegarder() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(allRecords)); } catch(e) {}
+}
+
+function chargerDonnees() {
+  try {
+    var saved = localStorage.getItem(STORE_KEY);
+    if (saved) {
+      allRecords = JSON.parse(saved);
+      photoCount = new Set(allRecords.map(function(r) { return r.fichier; }).filter(Boolean)).size;
+    }
+  } catch(e) { allRecords = []; }
+}
+
+function toutEffacer() {
+  if (!confirm('Effacer toutes les fiches ? Cette action est irréversible.')) return;
+  allRecords = []; photoCount = 0;
+  sauvegarder(); renderTableau(); updateStats(); remplirFiltres();
+  showToast('🗑 Données effacées');
+}
+
+// ════════════════════════════════════════════
+// TABLEAU
+// ════════════════════════════════════════════
+function renderTableau(data) {
+  var records = data || allRecords;
+  var tbody   = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  records.forEach(function(rec, i) {
+    var realIdx = data ? allRecords.indexOf(rec) : i;
+    var warns = valider(rec);
+    var tr = document.createElement('tr');
+    if (warns.length && rec.conforme !== 'OK') tr.classList.add('has-warning');
+
+    var confBadge = '';
+    if (rec.conforme === 'OK')    confBadge = '<span class="badge badge-ok">OK</span>';
+    else if (rec.conforme === 'VERIF') confBadge = '<span class="badge badge-verif">VERIF</span>';
+    else if (warns.length) confBadge = '<span class="badge badge-warn">⚠</span>';
+
+    var gpsLink = rec.lat && rec.lng
+      ? '<a href="https://maps.google.com/?q=' + rec.lat + ',' + rec.lng + '" target="_blank" style="color:var(--gold)" onclick="event.stopPropagation()">📍</a>'
+      : '—';
+
+    tr.innerHTML =
+      '<td>' + confBadge + '</td>' +
+      '<td class="id-col">' + (rec.id||'—') + '</td>' +
+      '<td>' + e(rec.lot) + '</td>' +
+      '<td>' + e(rec.section) + '</td>' +
+      '<td>' + e(rec.famille) + '</td>' +
+      '<td>' + e(rec.nom) + '</td>' +
+      '<td>' + e(rec.prenom) + '</td>' +
+      '<td>' + e(rec.genre) + '</td>' +
+      '<td>' + e(rec.naisJour) + '</td>' +
+      '<td>' + e(rec.naisMois) + '</td>' +
+      '<td>' + e(rec.naisAnnee) + '</td>' +
+      '<td>' + e(rec.decJour) + '</td>' +
+      '<td>' + e(rec.decMois) + '</td>' +
+      '<td>' + e(rec.decAnnee) + '</td>' +
+      '<td>' + e(rec.epoux) + '</td>' +
+      '<td>' + e(rec.type) + '</td>' +
+      '<td>' + e(rec.couleur) + '</td>' +
+      '<td>' + e(rec.motif) + '</td>' +
+      '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">' + e(rec.inscription) + '</td>' +
+      '<td>' + (rec.lat ? '<a href="https://maps.google.com/?q=' + rec.lat + ',' + rec.lng + '" target="_blank" style="color:var(--text);text-decoration:none" onclick="event.stopPropagation()" title="Ouvrir dans Google Maps">' + rec.lat + ' 📍</a>' : '—') + '</td>' +
+      '<td>' + (rec.lng ? rec.lng : '—') + '</td>' +
+      '<td style="font-size:0.75rem">' + e(rec.fichier) + '</td>' +
+      '<td>' + e(rec.date_photo) + '</td>';
+
+    tr.addEventListener('click', function() { openSidepanel(realIdx); });
+    tbody.appendChild(tr);
+  });
+  document.getElementById('countLabel').textContent = records.length + ' fiche' + (records.length!==1?'s':'');
+}
+
+function e(v) { return v ? String(v).replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'; }
+
+function filtrer() {
+  var q    = document.getElementById('searchInput').value.toLowerCase();
+  var conf = document.getElementById('filterConf').value;
+  var sec  = document.getElementById('filterSection').value;
+  var res  = allRecords.filter(function(r) {
+    var txt = [r.id,r.nom,r.prenom,r.famille,r.lot,r.section,r.fichier].join(' ').toLowerCase();
+    return (!q || txt.includes(q)) && (!conf || r.conforme === conf) && (!sec || r.section === sec);
+  });
+  renderTableau(res);
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent  = allRecords.length;
+  document.getElementById('statPhotos').textContent = photoCount;
+  document.getElementById('statOK').textContent     = allRecords.filter(function(r){return r.conforme==='OK';}).length;
+  document.getElementById('statVerif').textContent  = allRecords.filter(function(r){return r.conforme==='VERIF';}).length;
+}
+
+function remplirFiltres() {
+  var sections = [...new Set(allRecords.map(function(r){return r.section;}).filter(Boolean))].sort();
+  var lots     = [...new Set(allRecords.map(function(r){return r.lot;}).filter(Boolean))].sort();
+  var selSec = document.getElementById('filterSection');
+  var dlLots = document.getElementById('listLots');
+  var dlSecs = document.getElementById('listSections');
+  while (selSec.children.length > 1) selSec.removeChild(selSec.lastChild);
+  sections.forEach(function(v) { var o=document.createElement('option'); o.value=v; o.textContent=v; selSec.appendChild(o); });
+  dlLots.innerHTML = ''; lots.forEach(function(v){var o=document.createElement('option');o.value=v;dlLots.appendChild(o);});
+  dlSecs.innerHTML = ''; sections.forEach(function(v){var o=document.createElement('option');o.value=v;dlSecs.appendChild(o);});
+}
+
+// ════════════════════════════════════════════
+// MODAL FICHE
+// ════════════════════════════════════════════
+function remplirDates() {
+  var annee = new Date().getFullYear();
+  ['mNaisJour','mDecJour'].forEach(function(id) {
+    var s = document.getElementById(id);
+    for (var i=1;i<=31;i++){var o=document.createElement('option');o.value=o.textContent=String(i).padStart(2,'0');s.appendChild(o);}
+  });
+  ['mNaisMois','mDecMois'].forEach(function(id) {
+    var s = document.getElementById(id);
+    for (var i=1;i<=12;i++){var o=document.createElement('option');o.value=o.textContent=String(i).padStart(2,'0');s.appendChild(o);}
+  });
+  ['mNaisAnnee','mDecAnnee'].forEach(function(id) {
+    var s = document.getElementById(id);
+    for (var i=annee;i>=1799;i--){var o=document.createElement('option');o.value=o.textContent=String(i);s.appendChild(o);}
+  });
+  ['mNaisAnnee','mDecAnnee'].forEach(function(id) {
+    document.getElementById(id).addEventListener('change', rafraichirWarning);
+  });
+}
+
+function toggleMotifAutre() {
+  var v = document.getElementById('mMotif').value;
+  document.getElementById('motifAutreWrap').style.display = v === 'Autre' ? '' : 'none';
+}
+
+function rafraichirWarning() {
+  var ny = parseInt(document.getElementById('mNaisAnnee').value) || 0;
+  var dy = parseInt(document.getElementById('mDecAnnee').value)  || 0;
+  var msgs = [];
+  if (ny && ny < 1799) msgs.push('! Naissance avant 1799 (' + ny + ')');
+  if (dy && dy < 1799) msgs.push('! Décès avant 1799 (' + dy + ')');
+  if (ny && dy && (dy-ny) > 120) msgs.push('! Âge > 120 ans (' + (dy-ny) + ')');
+  if (ny && dy && dy < ny) msgs.push('! Décès avant naissance');
+  var box = document.getElementById('warnBox');
+  if (msgs.length) { box.innerHTML = msgs.join('<br>'); box.classList.add('show'); }
+  else box.classList.remove('show');
+}
+
+function openModalAdd() {
+  editIndex = -1;
+  document.getElementById('modalTitle').textContent = 'Nouvelle fiche';
+  document.getElementById('btnSupprimer').style.display = 'none';
+  viderModal();
+  document.getElementById('mID').value = genID();
+  document.getElementById('mConforme').value = 'OK';
+  currentModalPhoto = null;
+  document.getElementById('modalPhotoWrap').style.display = 'none';
+  document.getElementById('overlay').classList.add('open');
+}
+
+function openModalEdit(idx) {
+  editIndex = idx;
+  var r = allRecords[idx];
+  document.getElementById('modalTitle').textContent = 'Modifier — ' + (r.id||'');
+  document.getElementById('btnSupprimer').style.display = 'block';
+  viderModal();
+  document.getElementById('mID').value        = r.id        || '';
+  document.getElementById('mConforme').value  = r.conforme  || '';
+  document.getElementById('mLot').value       = r.lot       || '';
+  document.getElementById('mSection').value   = r.section   || '';
+  document.getElementById('mFamille').value   = r.famille   || '';
+  document.getElementById('mNom').value       = r.nom       || '';
+  document.getElementById('mPrenom').value    = r.prenom    || '';
+  document.getElementById('mGenre').value     = r.genre     || '';
+  document.getElementById('mEpoux').value     = r.epoux     || '';
+  document.getElementById('mNaisJour').value  = r.naisJour  || '';
+  document.getElementById('mNaisMois').value  = r.naisMois  || '';
+  document.getElementById('mNaisAnnee').value = r.naisAnnee || '';
+  document.getElementById('mDecJour').value   = r.decJour   || '';
+  document.getElementById('mDecMois').value   = r.decMois   || '';
+  document.getElementById('mDecAnnee').value  = r.decAnnee  || '';
+  document.getElementById('mType').value      = r.type      || '';
+  document.getElementById('mCouleur').value   = r.couleur   || '';
+  document.getElementById('mMotif').value     = r.motif     || '';
+  toggleMotifAutre();
+  document.getElementById('mInscription').value = r.inscription || '';
+  document.getElementById('mLat').value       = r.lat       || '';
+  document.getElementById('mLng').value       = r.lng       || '';
+  document.getElementById('mFichier').value   = r.fichier   || '';
+  document.getElementById('mDatePhoto').value = r.date_photo|| '';
+  // Photo
+  currentModalPhoto = r.photoSrc || null;
+  var wrap = document.getElementById('modalPhotoWrap');
+  if (r.photoSrc) {
+    document.getElementById('modalPhotoThumb').src = r.photoSrc;
+    wrap.style.display = '';
+  } else { wrap.style.display = 'none'; }
+  rafraichirWarning();
+  document.getElementById('overlay').classList.add('open');
+}
+
+function viderModal() {
+  ['mLot','mSection','mFamille','mNom','mPrenom','mEpoux','mInscription','mLat','mLng'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
+  ['mGenre','mType','mCouleur','mMotif','mConforme','mNaisJour','mNaisMois','mNaisAnnee','mDecJour','mDecMois','mDecAnnee'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('mMotifAutre').value = '';
+  document.getElementById('motifAutreWrap').style.display = 'none';
+  document.getElementById('warnBox').classList.remove('show');
+}
+
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('overlay')) closeModal(); }
+
+function sauvegarderFiche() {
+  var rec = {
+    id:          document.getElementById('mID').value,
+    conforme:    document.getElementById('mConforme').value,
+    lot:         document.getElementById('mLot').value,
+    section:     document.getElementById('mSection').value,
+    famille:     document.getElementById('mFamille').value,
+    nom:         document.getElementById('mNom').value,
+    prenom:      document.getElementById('mPrenom').value,
+    genre:       document.getElementById('mGenre').value,
+    naisJour:    document.getElementById('mNaisJour').value,
+    naisMois:    document.getElementById('mNaisMois').value,
+    naisAnnee:   document.getElementById('mNaisAnnee').value,
+    decJour:     document.getElementById('mDecJour').value,
+    decMois:     document.getElementById('mDecMois').value,
+    decAnnee:    document.getElementById('mDecAnnee').value,
+    epoux:       document.getElementById('mEpoux').value,
+    type:        document.getElementById('mType').value,
+    couleur:     document.getElementById('mCouleur').value,
+    motif:       document.getElementById('mMotif').value === 'Autre'
+                   ? document.getElementById('mMotifAutre').value
+                   : document.getElementById('mMotif').value,
+    inscription: document.getElementById('mInscription').value,
+    lat:         document.getElementById('mLat').value,
+    lng:         document.getElementById('mLng').value,
+    fichier:     document.getElementById('mFichier').value,
+    date_photo:  document.getElementById('mDatePhoto').value,
+    photoSrc:    editIndex >= 0 ? allRecords[editIndex].photoSrc : currentModalPhoto
+  };
+  if (editIndex >= 0) allRecords[editIndex] = rec;
+  else allRecords.push(rec);
+  sauvegarder(); closeModal(); remplirFiltres(); renderTableau(); updateStats();
+  showToast(editIndex >= 0 ? '✅ Fiche modifiée !' : '✅ Fiche ajoutée !');
+}
+
+function supprimerFiche() {
+  if (!confirm('Supprimer cette fiche ?')) return;
+  allRecords.splice(editIndex, 1);
+  sauvegarder(); closeModal(); remplirFiltres(); renderTableau(); updateStats();
+  showToast('🗑 Fiche supprimée');
+}
+
+// ════════════════════════════════════════════
+// LIGHTBOX
+// ════════════════════════════════════════════
+function openLightboxSrc(src) {
+  if (!src) return;
+  lbScale = 1; lbX = 0; lbY = 0;
+  var img = document.getElementById('lbImg');
+  img.src = src;
+  img.style.transform = '';
+  document.getElementById('lightbox').classList.add('open');
+  setupLbDrag(img);
+}
+
+function closeLightbox(e) {
+  if (!e || e.target === document.getElementById('lightbox') || e.target === document.querySelector('.lb-close')) {
+    document.getElementById('lightbox').classList.remove('open');
+  }
+}
+
+function lbZoom(f) { lbScale = Math.max(.5, Math.min(8, lbScale*f)); applyLb(); }
+function lbReset() { lbScale=1; lbX=0; lbY=0; applyLb(); }
+function applyLb() {
+  document.getElementById('lbImg').style.transform = 'translate('+lbX+'px,'+lbY+'px) scale('+lbScale+')';
+}
+
+function setupLbDrag(img) {
+  img.onmousedown = function(e) { lbDrag=true; lbDX=e.clientX-lbX; lbDY=e.clientY-lbY; e.preventDefault(); };
+  document.onmousemove = function(e) { if(!lbDrag) return; lbX=e.clientX-lbDX; lbY=e.clientY-lbDY; applyLb(); };
+  document.onmouseup  = function() { lbDrag=false; };
+  img.onwheel = function(e) { e.preventDefault(); lbZoom(e.deltaY<0?1.1:0.9); };
+}
+
+
+// ════════════════════════════════════════════
+// EXPORT EXCEL — compatible v14-3
+// ════════════════════════════════════════════
+function exportExcel() {
+  if (!allRecords.length) { showToast('❌ Aucune donnée à exporter'); return; }
+
+  var wb = XLSX.utils.book_new();
+
+  // ── ONGLET RECENSEMENT ──
+  var headers = [
+    'ID','Conforme','N Lot','Section','Famille','Nom','Prenom','Genre',
+    'Nais Jour','Nais Mois','Nais Annee',
+    'Dec Jour','Dec Mois','Dec Annee',
+    'Epoux de','Type Pierre','Couleur','Motif','Inscription',
+    'GPS Lat','GPS Lng','Fichier','Date Photo'
+  ];
+
+  var rows = [headers];
+  allRecords.forEach(function(r) {
+    rows.push([
+      r.id||'', r.conforme||'', r.lot||'', r.section||'',
+      r.famille||'', r.nom||'', r.prenom||'', r.genre||'',
+      r.naisJour||'', r.naisMois||'', r.naisAnnee||'',
+      r.decJour||'', r.decMois||'', r.decAnnee||'',
+      r.epoux||'', r.type||'', r.couleur||'', r.motif||'', r.inscription||'',
+      r.lat||'', r.lng||'', r.fichier||'', r.date_photo||''
+    ]);
+  });
+
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Largeurs colonnes (mêmes que v14-3)
+  ws['!cols'] = [
+    {wch:12}, {wch:10}, {wch:16}, {wch:10}, {wch:22},
+    {wch:18}, {wch:18}, {wch:8},
+    {wch:10}, {wch:10}, {wch:14},
+    {wch:10}, {wch:10}, {wch:14},
+    {wch:22}, {wch:14}, {wch:12}, {wch:18}, {wch:32},
+    {wch:14}, {wch:14}, {wch:22}, {wch:20}
+  ];
+
+  // Hauteur ligne 1
+  ws['!rows'] = [{hpt:32}];
+
+  // Style en-têtes (fond foncé, texte doré, Arial bold)
+  var hdrStyle = {
+    font:      { bold: true, color: { rgb: 'C9A96E' }, name: 'Arial', sz: 10 },
+    fill:      { fgColor: { rgb: '2A2420' } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: {
+      bottom: { style: 'medium', color: { rgb: 'C9A96E' } }
+    }
+  };
+
+  // Appliquer style en-têtes
+  headers.forEach(function(h, i) {
+    var cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
+    if (ws[cellRef]) ws[cellRef].s = hdrStyle;
+  });
+
+  // Style données — alternance et colonne Conforme colorée
+  allRecords.forEach(function(rec, ri) {
+    var rowIdx = ri + 1;
+    var isEven = ri % 2 === 0;
+    var rowFill = isEven
+      ? { fgColor: { rgb: 'F5EDD8' } }
+      : { fgColor: { rgb: 'FFFFFF' } };
+
+    for (var ci = 0; ci < 23; ci++) {
+      var ref = XLSX.utils.encode_cell({ r: rowIdx, c: ci });
+      if (!ws[ref]) ws[ref] = { v: '', t: 's' };
+      ws[ref].s = {
+        font:      { name: 'Arial', sz: 10 },
+        fill:      rowFill,
+        alignment: { vertical: 'center' }
+      };
+    }
+
+    // Colonne Conforme (B = index 1) colorée
+    var confRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
+    if (!ws[confRef]) ws[confRef] = { v: '', t: 's' };
+    var confVal = rec.conforme || '';
+    if (confVal === 'OK') {
+      ws[confRef].s = {
+        font:  { name: 'Arial', sz: 10, bold: true, color: { rgb: '006100' } },
+        fill:  { fgColor: { rgb: 'C6EFCE' } },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+    } else if (confVal === 'VERIF') {
+      ws[confRef].s = {
+        font:  { name: 'Arial', sz: 10, bold: true, color: { rgb: '9C5700' } },
+        fill:  { fgColor: { rgb: 'FFEB9C' } },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+    }
+  });
+
+  // Validation données (menus déroulants)
+  var maxRow = allRecords.length + 1;
+  ws['!dataValidation'] = [
+    { sqref: 'B2:B'+maxRow, type: 'list', formula1: '"OK,VERIF"' },
+    { sqref: 'H2:H'+maxRow, type: 'list', formula1: '"M,F"' },
+    { sqref: 'P2:P'+maxRow, type: 'list', formula1: '"Granit,Marbre,Calcaire,Beton,Bois,Metal"' },
+    { sqref: 'Q2:Q'+maxRow, type: 'list', formula1: '"Noir,Gris,Rose,Rouge,Blanc,Beige,Brun"' },
+    { sqref: 'R2:R'+maxRow, type: 'list', formula1: '"Fleur,Oiseau,Croix,Feuilles,Colombe,Etoile,Ancre,Anneaux,Autre"' }
+  ];
+
+  // Filtre automatique
+  ws['!autofilter'] = { ref: 'A1:W1' };
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Recensement');
+
+  // ── ONGLET LISTES ──
+  var wsLists = XLSX.utils.aoa_to_sheet([
+    ['Type','Couleur','Motif','Genre','Conf','Lots','Sections'],
+    ['Granit','Noir','Fleur','M','OK','',''],
+    ['Marbre','Gris','Oiseau','F','VERIF','',''],
+    ['Calcaire','Rose','Croix','','','',''],
+    ['Beton','Rouge','Feuilles','','','',''],
+    ['Bois','Blanc','Colombe','','','',''],
+    ['Metal','Beige','Etoile','','','',''],
+    ['','Brun','Ancre','','','',''],
+    ['','','Anneaux','','','',''],
+    ['','','Autre','','','','']
+  ]);
+  XLSX.utils.book_append_sheet(wb, wsLists, 'Listes');
+
+  // Générer et télécharger
+  var wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+  var blob  = new Blob([wbout], { type: 'application/octet-stream' });
+  var url   = URL.createObjectURL(blob);
+  var a     = document.createElement('a');
+  a.href = url;
+  a.download = 'pierres-tombales-' + new Date().toISOString().slice(0,10) + '.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📊 Export Excel prêt !');
+}
+
+// ════════════════════════════════════════════
+// EXPORT CSV
+// ════════════════════════════════════════════
+function exportCSV() {
+  var headers = ['ID','Conforme','N Lot','Section','Famille','Nom','Prenom','Genre',
+    'Nais Jour','Nais Mois','Nais Annee','Dec Jour','Dec Mois','Dec Annee',
+    'Epoux de','Type Pierre','Couleur','Motif','Inscription',
+    'GPS Lat','GPS Lng','Fichier','Date Photo'];
+  var rows = allRecords.map(function(r) {
+    return [r.id,r.conforme,r.lot,r.section,r.famille,r.nom,r.prenom,r.genre,
+      r.naisJour,r.naisMois,r.naisAnnee,r.decJour,r.decMois,r.decAnnee,
+      r.epoux,r.type,r.couleur,r.motif,r.inscription,
+      r.lat,r.lng,r.fichier,r.date_photo];
+  });
+  var csv = [headers].concat(rows).map(function(row) {
+    return row.map(function(v) { return '"' + String(v||'').replace(/"/g,'""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = 'pierres-tombales-v16-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('📥 Export CSV prêt !');
+}
+
+
+// ════════════════════════════════════════════
+// SIDEPANEL
+// ════════════════════════════════════════════
+var spIndex = -1;
+var spScale = 1, spX = 0, spY = 0;
+var spDrag = false, spDX = 0, spDY = 0;
+
+function openSidepanel(idx) {
+  spIndex = idx;
+  var r = allRecords[idx];
+  document.getElementById('spTitle').textContent = (r.id||'—') + '  ' + [r.nom, r.prenom].filter(Boolean).join(' ');
+
+  // Photo
+  var img  = document.getElementById('spImg');
+  var noP  = document.getElementById('spNoPhoto');
+  var zoom = document.getElementById('spZoom');
+  if (r.photoSrc) {
+    img.src = r.photoSrc; img.style.display = 'block';
+    noP.style.display = 'none'; zoom.style.display = 'flex';
+    spResetZoom(); setupSpDrag(img);
+  } else {
+    img.style.display = 'none'; noP.style.display = 'block'; zoom.style.display = 'none';
+  }
+
+  // Formulaire éditable inline
+  var anneeActuelle = new Date().getFullYear();
+  var joursOpts = '<option value="">JJ</option>';
+  for (var j=1;j<=31;j++) { var jj=String(j).padStart(2,'0'); joursOpts+='<option value="'+jj+'"'+((r.naisJour===jj||r.decJour===jj)?' selected':'')+'>'+jj+'</option>'; }
+  var moisOpts = '<option value="">MM</option>';
+  for (var m=1;m<=12;m++) { var mm=String(m).padStart(2,'0'); moisOpts+='<option value="'+mm+'">'+mm+'</option>'; }
+  var anneeOpts = '<option value="">AAAA</option>';
+  for (var a=anneeActuelle;a>=1799;a--) anneeOpts+='<option value="'+a+'">'+a+'</option>';
+
+  function jopts(selected) {
+    var s='<option value="">JJ</option>';
+    for(var j=1;j<=31;j++){var jj=String(j).padStart(2,'0');s+='<option value="'+jj+'"'+(selected===jj?' selected':'')+'>'+jj+'</option>';}
+    return s;
+  }
+  function mopts(selected) {
+    var s='<option value="">MM</option>';
+    for(var m=1;m<=12;m++){var mm=String(m).padStart(2,'0');s+='<option value="'+mm+'"'+(selected===mm?' selected':'')+'>'+mm+'</option>';}
+    return s;
+  }
+  function aopts(selected) {
+    var s='<option value="">AAAA</option>';
+    for(var a=anneeActuelle;a>=1799;a--){s+='<option value="'+a+'"'+(String(selected)===String(a)?' selected':'')+'>'+a+'</option>';}
+    return s;
+  }
+  function sel(opts,id,style){ return '<select id="sp_'+id+'" onchange="spAutoSave()" style="'+style+'background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 4px;font-size:0.78rem;">'+opts+'</select>'; }
+  function inp(val,id,style){ return '<input type="text" id="sp_'+id+'" value="'+escAttr(val)+'" onchange="spAutoSave()" style="'+style+'background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:0.82rem;">'; }
+  function ta(val,id){ return '<textarea id="sp_'+id+'" onchange="spAutoSave()" rows="3" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:0.82rem;resize:vertical;">'+escHtml(val)+'</textarea>'; }
+  function row(label,ctrl){ return '<div style="margin-bottom:8px"><div style="font-size:0.72rem;color:var(--gold);font-weight:600;margin-bottom:3px">'+label+'</div>'+ctrl+'</div>'; }
+
+  var gpsLink = r.lat && r.lng
+    ? '<a href="https://maps.google.com/?q='+r.lat+','+r.lng+'" target="_blank" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;margin-top:4px">📍 Google Maps</a>'
+    : '';
+
+  var html =
+    '<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center">' +
+      '<span style="color:var(--gold);font-family:monospace;font-size:0.85rem;font-weight:700">'+escHtml(r.id||'')+'</span>' +
+      '<select id="sp_conforme" onchange="spAutoSave()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;font-size:0.82rem;margin-left:auto">' +
+        '<option value="">—</option>' +
+        '<option value="OK"'+(r.conforme==='OK'?' selected':'')+'>OK</option>' +
+        '<option value="VERIF"'+(r.conforme==='VERIF'?' selected':'')+'>VERIF</option>' +
+      '</select>' +
+      '<button class="btn btn-red btn-sm" onclick="spSupprimer()">🗑</button>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div>'+row('N° Lot',   inp(r.lot,     'lot',    'width:100%;'))+'</div>' +
+      '<div>'+row('Section',  inp(r.section, 'section','width:100%;'))+'</div>' +
+    '</div>' +
+    row('Famille', inp(r.famille,'famille','width:100%;')) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div>'+row('Nom',    inp(r.nom,    'nom',   'width:100%;'))+'</div>' +
+      '<div>'+row('Prénom', inp(r.prenom, 'prenom','width:100%;'))+'</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div>'+row('Genre',
+        '<select id="sp_genre" onchange="spAutoSave()" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:0.82rem">' +
+        '<option value="">—</option><option value="M"'+(r.genre==='M'?' selected':'')+'>M</option><option value="F"'+(r.genre==='F'?' selected':'')+'>F</option></select>'
+      )+'</div>' +
+      '<div>'+row('Époux de', inp(r.epoux,'epoux','width:100%;'))+'</div>' +
+    '</div>' +
+    row('Naissance',
+      '<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:4px">' +
+        sel(jopts(r.naisJour), 'naisJour','width:100%;') +
+        sel(mopts(r.naisMois), 'naisMois','width:100%;') +
+        sel(aopts(r.naisAnnee),'naisAnnee','width:100%;') +
+      '</div>'
+    ) +
+    row('Décès',
+      '<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:4px">' +
+        sel(jopts(r.decJour), 'decJour','width:100%;') +
+        sel(mopts(r.decMois), 'decMois','width:100%;') +
+        sel(aopts(r.decAnnee),'decAnnee','width:100%;') +
+      '</div>'
+    ) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div>'+row('Type Pierre',
+        '<select id="sp_type" onchange="spAutoSave()" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:0.82rem">' +
+        '<option value="">—</option>' +
+        ['Granit','Marbre','Calcaire','Beton','Bois','Metal'].map(function(v){return '<option value="'+v+'"'+(r.type===v?' selected':'')+'>'+v+'</option>';}).join('') +
+        '</select>'
+      )+'</div>' +
+      '<div>'+row('Couleur',
+        '<select id="sp_couleur" onchange="spAutoSave()" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:0.82rem">' +
+        '<option value="">—</option>' +
+        ['Noir','Gris','Rose','Rouge','Blanc','Beige','Brun'].map(function(v){return '<option value="'+v+'"'+(r.couleur===v?' selected':'')+'>'+v+'</option>';}).join('') +
+        '</select>'
+      )+'</div>' +
+    '</div>' +
+    row('Motif',
+      '<select id="sp_motif" onchange="spAutoSave()" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:0.82rem">' +
+      '<option value="">—</option>' +
+      ['Fleur','Oiseau','Croix','Feuilles','Colombe','Etoile','Ancre','Anneaux','Autre'].map(function(v){return '<option value="'+v+'"'+(r.motif===v?' selected':'')+'>'+v+'</option>';}).join('') +
+      '</select>'
+    ) +
+    row('Inscription', ta(r.inscription,'inscription')) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+      '<div>'+row('GPS Lat', inp(r.lat,'lat','width:100%;'))+'</div>' +
+      '<div>'+row('GPS Lng', inp(r.lng,'lng','width:100%;'))+'</div>' +
+    '</div>' +
+    '<div style="font-size:0.75rem;color:var(--text2);margin-top:4px">📁 '+escHtml(r.fichier||'')+'  📅 '+escHtml(r.date_photo||'')+'</div>' +
+    gpsLink +
+    '<div id="sp_savedMsg" style="color:#4a8c5c;font-size:0.78rem;margin-top:8px;display:none">✅ Sauvegardé</div>';
+
+  document.getElementById('spFormPane').innerHTML = html;
+  document.getElementById('sidepanel').classList.add('open');
+}
+
+function escAttr(v) { return String(v||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(v) { return String(v||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function spAutoSave() {
+  if (spIndex < 0) return;
+  var r = allRecords[spIndex];
+  var g = function(id) { var el=document.getElementById('sp_'+id); return el ? el.value : ''; };
+  r.conforme   = g('conforme');
+  r.lot        = g('lot');
+  r.section    = g('section');
+  r.famille    = g('famille');
+  r.nom        = g('nom');
+  r.prenom     = g('prenom');
+  r.genre      = g('genre');
+  r.epoux      = g('epoux');
+  r.naisJour   = g('naisJour');
+  r.naisMois   = g('naisMois');
+  r.naisAnnee  = g('naisAnnee');
+  r.decJour    = g('decJour');
+  r.decMois    = g('decMois');
+  r.decAnnee   = g('decAnnee');
+  r.type       = g('type');
+  r.couleur    = g('couleur');
+  r.motif      = g('motif');
+  r.inscription= g('inscription');
+  r.lat        = g('lat');
+  r.lng        = g('lng');
+  // Mettre à jour le titre
+  document.getElementById('spTitle').textContent = (r.id||'—') + '  ' + [r.nom, r.prenom].filter(Boolean).join(' ');
+  sauvegarder();
+  renderTableau();
+  updateStats();
+  // Flash sauvegardé
+  var msg = document.getElementById('sp_savedMsg');
+  if (msg) { msg.style.display='block'; clearTimeout(msg._t); msg._t=setTimeout(function(){msg.style.display='none';},1500); }
+}
+
+function closeSidepanel() {
+  document.getElementById('sidepanel').classList.remove('open');
+  spIndex = -1;
+}
+
+function spNaviguer(dir) {
+  var newIdx = spIndex + dir;
+  if (newIdx >= 0 && newIdx < allRecords.length) openSidepanel(newIdx);
+  else showToast(dir < 0 ? '◄ Première fiche' : 'Dernière fiche ►');
+}
+
+function spSupprimer() {
+  if (!confirm('Supprimer cette fiche ?')) return;
+  allRecords.splice(spIndex, 1);
+  sauvegarder(); closeSidepanel(); remplirFiltres(); renderTableau(); updateStats();
+  showToast('🗑 Fiche supprimée');
+}
+
+function spZoom(f) { spScale = Math.max(.5, Math.min(8, spScale*f)); applySpTransform(); }
+function spResetZoom() { spScale=1; spX=0; spY=0; applySpTransform(); }
+function applySpTransform() {
+  document.getElementById('spImg').style.transform = 'translate('+spX+'px,'+spY+'px) scale('+spScale+')';
+}
+function setupSpDrag(img) {
+  img.onmousedown = function(e) { spDrag=true; spDX=e.clientX-spX; spDY=e.clientY-spY; e.preventDefault(); };
+  img.onmousemove = function(e) { if(!spDrag) return; spX=e.clientX-spDX; spY=e.clientY-spDY; applySpTransform(); };
+  img.onmouseup   = function() { spDrag=false; };
+  img.onmouseleave= function() { spDrag=false; };
+  img.onwheel     = function(e) { e.preventDefault(); spZoom(e.deltaY<0?1.1:0.9); };
+}
+
+// ════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 3500);
+}
+</script>
+</body>
+</html>
